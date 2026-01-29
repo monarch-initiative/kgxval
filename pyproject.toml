@@ -1,0 +1,29 @@
+[project]
+name = "kgxval"
+version = "0.0.0"
+description = "Checks the predicates from biolink data translator."
+requires-python = ">=3.13,<4"
+authors = [
+    { name="Daniel Korn", email="daniel_korn@med.unc.edu"}
+]
+readme = "README.md"
+license = "BSD-3-Clause"
+
+dependencies = [
+    "tqdm",
+    "bmt",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+bmt = { git = "https://github.com/biolink/biolink-model-toolkit.git", rev = "master" }
+
+[tool.pytest.ini_options]
+pythonpath = "src"
