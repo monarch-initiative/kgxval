@@ -12,6 +12,7 @@ license = "BSD-3-Clause"
 dependencies = [
     "tqdm",
     "bmt",
+    "pydantic",
 ]
 
 [project.optional-dependencies]
