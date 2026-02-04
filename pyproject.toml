@@ -15,12 +15,15 @@ dependencies = [
     "pydantic",
 ]
 
-[project.optional-dependencies]
+#[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest",
+    "dotenv",
 ]
 
 [tool.uv]
+default-groups = ["dev"]
 package = true
 
 [tool.uv.sources]
