@@ -1,19 +1,73 @@
 
 
+from collections import defaultdict
 import os
+import csv
 from pathlib import Path
+import pickle
 from typing import Optional
 
-from Ingest import findEdgeFile, findNodeFile, Ingest, makeIngestObjsFromTopLevelDir
-from check_kgx_so import SPOCValidationError, inspectSubObjErrorsForIngest, validationErrorsToFile
+from dotenv import load_dotenv
 
+from Ingest import findEdgeFile, findNodeFile, Ingest, makeIngestObjsDict, makeIngestObjsFromTopLevelDir
+from KGXSummarizer import KGXSummarizer
+from biolink_validation.check_kgx_sub_obj_pred import SPOCValidationError, findSubObjErrorsForIngest, validationErrorsToFile
+import pandas as pd
+from pandas_outputter import makeExcelSheetForSource
+from tqdm import tqdm
 
-if(__name__=="__main__"):
+def main():
     from dotenv import load_dotenv
     load_dotenv()
     ingest_dir = os.getenv("INGEST_TOP_LEVEL_DIR")
-    print(ingest_dir)
-    valid_errors:list[SPOCValidationError] = []
-    for ingest_obj in makeIngestObjsFromTopLevelDir(ingest_dir):
-        valid_errors+=inspectSubObjErrorsForIngest(ingest_obj)
-    validationErrorsToFile(valid_errors,"data/spoc_validation_errors.csv")
+    if(ingest_dir==None): raise ValueError(f"Can't find enviornment variable $INGEST_TOP_LEVEL_DIR")
+    ingest_dict = makeIngestObjsDict(ingest_dir)
+    
+    hp_cats = ["anatomical entity", "gene or gene product", "disease or phenotypic feature", "chemical entity"]
+    hp_cats = ["gene or gene product", "disease or phenotypic feature", "chemical entity"]
+
+    pbar = tqdm(ingest_dict)
+    for i,source_name in enumerate(pbar):
+        pbar.set_description(source_name)
+        if(i<7):continue
+        makeExcelSheetForSource(ingest_dict=ingest_dict,
+                                source_name=source_name,
+                                hp_cats=hp_cats,
+                                with_samples=True,
+                                outpath=f"data/output/{source_name}_summary.xlsx")
+                            
+def compareCTDPrePostNorm():
+    load_dotenv()
+    ingest_dir = os.getenv("INGEST_TOP_LEVEL_DIR")
+    ingest_dict = makeIngestObjsDict(ingest_dir)
+    hp_cats = ["gene or gene product", "disease or phenotypic feature", "chemical entity"]
+    hp_cats = []
+    ctd_ingest = KGXSummarizer.initWithIngestObj(ingest_dict["ctd"]["normalized"],hp_cats)
+    unnorm_ctd_ingest = KGXSummarizer.initWithIngestObj(ingest_dict["ctd"]["not_normalized"],hp_cats)
+    seen_subs = set()
+    with open("data/output/ctd_normalized_to_genes.csv",'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(["NODE_ID","NODE_NAME","PRE-NORMALIZATION_ID","PRE-NORMALIZATION_NAME","PRE-NORMALIZATION_CATEGORY","ASSIGNED_CATEGORY","ALL_NODE_CATEGORIES_(from_node_norm)"])
+        for node_dict in ctd_ingest.iter_nodes():
+                sub_id = node_dict["id"]
+                if(sub_id in seen_subs):continue
+                seen_subs.add(sub_id)
+                all_subs = ctd_ingest.get_node_id_category(sub_id)
+                best_sub = ctd_ingest._getBestCat(all_subs)
+                if("gene or gene product" in all_subs):
+                    sub_name = ctd_ingest.get_node_id_name(sub_id)
+                    not_norm_sub_cat="n/a"
+                    not_norm_ids=[]
+                    not_norm_name=""
+                    for equiv in ctd_ingest.get_node_id_to_equiv_ids(sub_id):
+                        if(equiv in unnorm_ctd_ingest.get_node_to_category_dict()):
+                            not_norm_ids.append(equiv)
+                            not_norm_name = unnorm_ctd_ingest.get_node_id_name(equiv)
+                            not_norm_sub_cat = "|".join(unnorm_ctd_ingest.get_node_id_category(equiv))
+                    if(not_norm_sub_cat=="chemical entity"):
+                        if(best_sub!="protein"):print("WACK!!!", all_subs, best_sub, sub_id)
+                        writer.writerow([sub_id,sub_name,", ".join(not_norm_ids),not_norm_name,not_norm_sub_cat,best_sub,", ".join(sorted(all_subs))])
+                
+if(__name__=="__main__"):
+#    compareCTDPrePostNorm()
+     main()

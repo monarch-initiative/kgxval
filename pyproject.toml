@@ -10,14 +10,15 @@ readme = "README.md"
 license = "BSD-3-Clause"
 
 dependencies = [
-    "tqdm",
     "bmt",
+    "pandas",
     "pydantic",
 ]
 
 #[project.optional-dependencies]
 [dependency-groups]
 dev = [
+    "tqdm",
     "pytest",
     "dotenv",
 ]
