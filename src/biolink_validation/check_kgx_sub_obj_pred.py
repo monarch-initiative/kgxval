@@ -55,7 +55,7 @@ def writeSOPCsToFile(ingest:Ingest,outpath:str):
         for sopc, cnt in _getUniqueSOPCsForIngest(ingest):
             writer.writerow([ingest.ingest_name, ingest.norm_status] + sopc.to_csv_list() + [cnt])
 
-class SPOCValidationError(BaseModel):
+class SPOCValidationError(BaseModel, frozen=True):
     pred:str
     error:str
     valid_cats:list[str]

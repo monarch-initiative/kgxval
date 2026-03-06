@@ -6,20 +6,40 @@ from pydantic import BaseModel
 from bmt import Toolkit
 from bmt.utils import parse_name
 import numpy as np
+from tqdm import tqdm
 
-NONPROPERTY_KEYS: Final = set(["subject","predicate","qualified_predicate","object","knowledge_level","agent_type","sources"])
-MATT_QUALIFIER_ORDER:Final = ["object_specialization_qualifier","object_form_or_variant_qualifier","object_derivative_qualifier","object_part_qualifier",
+NONPROPERTY_KEYS:frozenset[str] = frozenset(["subject","predicate","qualified_predicate","object","knowledge_level","agent_type","sources"])
+
+MATT_QUALIFIER_ORDER:tuple[str,...] = ("object_specialization_qualifier","object_form_or_variant_qualifier","object_derivative_qualifier","object_part_qualifier",
     "object_aspect_qualifier","object_direction_qualifier","object_role_qualifier","object_role",
     "subject_specialization_qualifier","subject_form_or_variant_qualifier","subject_derivative_qualifier","subject_aspect_qualifier",
     "subject_part_qualifier","subject_direction_qualifier","subject_role_qualifier",
     "subject_role","context_qualifier","species_context_qualifier",
     "anatomical_context_qualifier","disease_or_phenotypic_feature_context_qualifier",
-    "population_context_qualifier","causal_mechanism_qualifier","derivative_qualifier"]
+    "population_context_qualifier","causal_mechanism_qualifier","derivative_qualifier")
 
 def makePipeJoinedStringIfList(str_or_list:str|list[str])->str:
     if(type(str_or_list)==str):return str_or_list
     elif(type(str_or_list)==list): return "|".join(str_or_list)
     raise ValueError
+
+def cleanPrefixesFromDictVals(dict:dict)->dict:
+    for (key,val) in list(dict.items()):
+        if(type(val)==str):
+            if(val.startswith("infores:")):dict[key]=val.replace("infores:","")
+            if(val.startswith("biolink:")):dict[key]=val.replace("biolink:","")
+    return dict
+
+def orderQualifiersForMatt(qualifiers):
+    ret_list = []
+    for q in MATT_QUALIFIER_ORDER:
+        if q in qualifiers: ret_list.append(q)
+    for q in qualifiers:
+        if(q not in MATT_QUALIFIER_ORDER and q not in ret_list): 
+            #print(f"Qualifier {q} found, but not in Matt's list.")
+            ret_list.append(q)
+    return ret_list
+
 
 class SPQO(BaseModel, frozen=True):
     """A class representing a unique tuple of Subject, Predicate, Qualifier, and Object.
@@ -30,8 +50,9 @@ class SPQO(BaseModel, frozen=True):
     pred:str
     q_pred:str
     ocat:str
-    def makeTuple(self):
-        return (self.scat,self.pred,self.q_pred,self.ocat)
+    def makeTuple(self) -> tuple[str,str,str,str]:
+        tup = (self.scat,self.pred,self.q_pred,self.ocat)
+        return tup
 
 class SPQOStats:
     spqo:SPQO
@@ -42,7 +63,7 @@ class SPQOStats:
     prop_set:set[str] #Set of all property seen (i.e. keys in a jsonl dict which isn't caught by other) (don't store the values, unchecked size and range of values.)
     pks_set:set[str]
     sks_set:set[str]
-    suppks_set:set[str]
+    suppds_set:set[str]
     aks_set:set[str]
     qualifier_vals:dict[str,set] #Dict of $qualifier -> {set of vals for $qualifier} 
     act_scats:set[str] #Actual subject categories
@@ -58,7 +79,7 @@ class SPQOStats:
         self.prop_set = set()
         self.pks_set = set()
         self.sks_set = set()
-        self.suppks_set = set()
+        self.suppds_set = set()
         self.aks_set = set()
         self.qualifier_vals = defaultdict(set)
         self.act_scats = set()
@@ -108,9 +129,13 @@ class SPQOStats:
         if("sources" in edge): self.sks_set.update([s["resource_id"] for s in edge["sources"] if s["resource_role"]=="secondary_knowledge_source"])
         elif("secondary_knowledge_source" in edge): self.sks_set.add(edge["secondary_knowledge_source"])
 
-    def _updateSuppKS(self,edge):
-        if("sources" in edge): self.suppks_set.update([s["resource_id"] for s in edge["sources"] if s["resource_role"]=="supporting_knowledge_source"])
-        elif("supporting_knowledge_source" in edge): self.suppks_set.add(edge["supporting_knowledge_source"])
+    def _updateSuppDS(self,edge):
+        if("sources" in edge): self.suppds_set.update([s["resource_id"] for s in edge["sources"] if s["resource_role"]=="supporting_data_source"])
+        elif("supporting_data_source" in edge): self.suppds_set.add(edge["supporting_data_source"])
+#        if("sources" in edge): self.suppks_set.update([s["resource_id"] for s in edge["sources"] if s["resource_role"]=="supporting_knowledge_source"])
+#        elif("supporting_knowledge_source" in edge): self.suppks_set.add(edge["supporting_knowledge_source"])
+
+
 
     def _updateAKS(self,edge):
         if("sources" in edge): self.aks_set.update([s["resource_id"] for s in edge["sources"] if s["resource_role"]=="aggregator_knowledge_source"])
@@ -142,7 +167,7 @@ class SPQOStats:
 
         self._updatePKS(edge)
         self._updateSKS(edge)
-        self._updateSuppKS(edge)
+        self._updateSuppDS(edge)
         self._updateAKS(edge)
 
         self._updateActualSCats(edge)
@@ -150,12 +175,17 @@ class SPQOStats:
 
     @staticmethod
     def _makePercentileStr(vals:list[int]) -> str:
-        per = np.percentile(vals,[0,25,50,75,100])
+        per_range = [0,10,20,30,40,50,60,70,80,90,100]
+        per = np.percentile(vals,per_range)
         avg = np.average(vals)
         no_pub_cnt = sum(val==0 for val in vals)
         one_pub_cnt = sum(val==1 for val in vals)
         twoplus_pub_cnt = sum(val>1 for val in vals)
-        retstr = f"(0 pubs:{no_pub_cnt},1 pub:{one_pub_cnt},>1 pubs:{twoplus_pub_cnt}) - Avg:{avg:.2f} - 0%:{per[0]:.2f}, 25%:{per[1]:.2f}, 50%:{per[2]:.2f}, 75%:{per[3]:.2f}, 100%:{per[4]:.2f}"
+
+    
+        percentile_str = ', '.join([f"{per_range[i]}:{per[i]:.2f}" for i in range(len(per_range))])
+        #"0%:{per[0]:.2f}, 25%:{per[1]:.2f}, 50%:{per[2]:.2f}, 75%:{per[3]:.2f}, 100%:{per[4]:.2f}"
+        retstr = f"(0 pubs:{no_pub_cnt},1 pub:{one_pub_cnt},>1 pubs:{twoplus_pub_cnt}) - Avg:{avg:.2f} - " + percentile_str
         return retstr
 
     def makePDDict(self,kgx_infores,normalized,total_edge_cnt) -> dict:
@@ -164,7 +194,7 @@ class SPQOStats:
             "Normalized":normalized,
             "Edge Count":self.cnt,
             "Edge Proportion":self.cnt/total_edge_cnt,
-            "SPQO_Tuple":self.spqo.makeTuple(),
+            "SPQO Tuple":self.spqo.makeTuple(),
             "SCat":self.spqo.scat,
             "SCat (Actual)":", ".join(sorted(self.act_scats)),
             "Predicate":self.spqo.pred,
@@ -172,13 +202,12 @@ class SPQOStats:
             "OCat":self.spqo.ocat,
             "OCat (Actual)":", ".join(sorted(self.act_ocats)),
             "Knowledge-Level Terms": ", ".join(sorted(self.kl_set)),
-            "Agent-Level Terms": ", ".join(sorted(self.at_set)),
+            "Agent-Type Terms": ", ".join(sorted(self.at_set)),
             "Edge Properties": ", ".join(sorted(self.prop_set)),
             "Primary Knowledge Source": ", ".join(sorted(self.pks_set)),
             "Secondary Knowledge Source": ", ".join(sorted(self.sks_set)),
-            "Supporting Knowledge Source": ", ".join(sorted(self.suppks_set)),
+            "Supporting Data Source": ", ".join(sorted(self.suppds_set)),
             "Aggregator Knowledge Source": ", ".join(sorted(self.aks_set)),
-            
         }
 
         if(len(self.pub_cnts)>0):
@@ -189,18 +218,10 @@ class SPQOStats:
 
         for qual,qual_set in self.qualifier_vals.items():
             output_dict[qual] = ", ".join(sorted(qual_set))
-        return output_dict
-        
-def orderQualifiersForMatt(qualifiers):
-    ret_list = []
-    for q in MATT_QUALIFIER_ORDER:
-        if q in qualifiers: ret_list.append(q)
-    for q in qualifiers:
-        if(q not in MATT_QUALIFIER_ORDER and q not in ret_list): 
-            #print(f"Qualifier {q} found, but not in Matt's list.")
-            ret_list.append(q)
-    return ret_list
 
+        output_dict = cleanPrefixesFromDictVals(output_dict)
+        return output_dict
+            
 class KGXSummarizer(Ingest):
     tk:Toolkit
     high_priority_desc_dict:dict[str,set]
@@ -259,7 +280,7 @@ class KGXSummarizer(Ingest):
     def summarize_edges(self) -> list[dict]:
         self.total_edge_cnt = 0
         #spqo_to_stats:dict[SPQO,SPQOStats] = {}
-        for edge_dict in self.iter_edges():
+        for edge_dict in tqdm(self.iter_edges()):
             self.total_edge_cnt+=1
             edge_spqo = self._makeSPQOFromEdgeDict(edge_dict)
             if(edge_spqo not in self.spqo_to_stats):
@@ -269,21 +290,17 @@ class KGXSummarizer(Ingest):
         return self.get_pd_rows()
 
     def sample_edges(self) -> list[dict]:
-        #
+        #Makes it be so that if "sources" is present (which is a dict
+        #that is {SOURCE_ROLE->INFORES,...}, that information is
+        #instead provided as the edge_dict[source_role] .
         def fixSources(edge_dict:dict)->dict:
             if("sources" not in edge_dict): return edge_dict
             for source_dict in edge_dict.get("sources",[]):
                 source_infores_id = source_dict["resource_id"].replace("infores:","")
                 source_role = source_dict["resource_role"]
-                if(source_role in edge_dict):edge_dict[source_role]+=f" ,{source_infores_id}"
+                if(source_role in edge_dict):edge_dict[source_role]+=f", {source_infores_id}"
                 else:edge_dict[source_role]=source_infores_id
             edge_dict.pop("sources")
-            return edge_dict
-        def cleanPrefixes(edge_dict:dict)->dict:
-            for (key,val) in list(edge_dict.items()):
-                if(type(val)==str):
-                    if("infores:" in val):edge_dict[key]=val.replace("infores:","")
-                    if("biolink:" in val):edge_dict[key]=val.replace("biolink:","")
             return edge_dict
         
         edge_samples_for_spoq = defaultdict(list)
@@ -291,11 +308,11 @@ class KGXSummarizer(Ingest):
             edge_spqo = self._makeSPQOFromEdgeDict(edge_dict)
             if(len(edge_samples_for_spoq[edge_spqo])>4):continue
             edge_dict["KGX Infores"] = self.ingest_name
-            edge_dict["SPQO tuple"] = edge_spqo
+            edge_dict["SPQO Tuple"] = edge_spqo.makeTuple()
             edge_dict["sub name"] = self.get_node_id_name(edge_dict["subject"])
             edge_dict["obj name"] = self.get_node_id_name(edge_dict["object"])
-            edge_dict = cleanPrefixes(edge_dict)
             edge_dict = fixSources(edge_dict)
+            edge_dict = cleanPrefixesFromDictVals(edge_dict)
             edge_samples_for_spoq[edge_spqo].append(edge_dict)
 
         #Gather all samples for each spoq and make one big list.

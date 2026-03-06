@@ -1,6 +1,7 @@
 
 
 from collections import defaultdict
+from datetime import datetime
 import os
 import csv
 from pathlib import Path
@@ -13,7 +14,7 @@ from Ingest import findEdgeFile, findNodeFile, Ingest, makeIngestObjsDict, makeI
 from KGXSummarizer import KGXSummarizer
 from biolink_validation.check_kgx_sub_obj_pred import SPOCValidationError, findSubObjErrorsForIngest, validationErrorsToFile
 import pandas as pd
-from pandas_outputter import makeExcelSheetForSource
+from pandas_outputter import ExcelDFFlags, makeExcelSheetForSource
 from tqdm import tqdm
 
 def main():
@@ -26,15 +27,36 @@ def main():
     hp_cats = ["anatomical entity", "gene or gene product", "disease or phenotypic feature", "chemical entity"]
     hp_cats = ["gene or gene product", "disease or phenotypic feature", "chemical entity"]
 
-    pbar = tqdm(ingest_dict)
+    datestr = datetime.now().strftime("%b-%d-%y") #ex. Feb-16-2026
+    outdir = f"data/output/{datestr}"
+    os.makedirs(outdir,exist_ok=True)
+
+    pbar = tqdm(sorted(list(ingest_dict)))
+    slurm_job = os.getenv("SLURM_ARRAY_TASK_ID")
+    print(f"\n$SLURM_ARRAY_TASK_ID is {slurm_job}\n")
     for i,source_name in enumerate(pbar):
+        if(slurm_job is not None):
+            if(i==int(slurm_job)):
+                 print(f"\n === Executing build for source {i} - {source_name} === \n")
+            else:continue
+        else:
+             continue
+#        print(i)
+#        continue
+        #if("dakp" not in source_name):
+        #    continue
         pbar.set_description(source_name)
-        if(i<7):continue
+        excel_sheet_flags = ExcelDFFlags(
+             unnorm_samp=False,
+             unnorm_summ=False
+        )
+
         makeExcelSheetForSource(ingest_dict=ingest_dict,
                                 source_name=source_name,
                                 hp_cats=hp_cats,
-                                with_samples=True,
-                                outpath=f"data/output/{source_name}_summary.xlsx")
+                                outpath=f"{outdir}/{source_name}_{datestr}_summary.xlsx",
+                                pbar=pbar,
+                                config=excel_sheet_flags)
                             
 def compareCTDPrePostNorm():
     load_dotenv()
