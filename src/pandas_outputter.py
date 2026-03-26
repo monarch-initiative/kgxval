@@ -38,10 +38,15 @@ def getShouldReportPublicationCount(kgx_summ_dicts:list[dict]):
     if any(["Publication Counts" in d for d in kgx_summ_dicts]): return ["Publication Counts"]
     else: return []
 
+def getShouldReportEvidenceCount(kgx_summ_dicts:list[dict]):
+    if any(["Evidence Counts" in d for d in kgx_summ_dicts]): return ["Evidence Counts"]
+    else: return []
+
 def makeSummaryDF(kgx_summ_dicts:list[dict],rollup:bool=True):
     output_quals = getQualifiersFromDictList(kgx_summ_dicts)
     output_roles = getSourceRolesFromDictList(kgx_summ_dicts)
     output_pub_cnt = getShouldReportPublicationCount(kgx_summ_dicts)
+    output_evidence_cnt = getShouldReportEvidenceCount(kgx_summ_dicts)
 
     output_columns = ["KGX Infores", "Normalized", "Edge Count", "Edge Proportion", "SPQO Tuple",  "SCat", "SCat (Actual)",
                       "Predicate", "OCat", "OCat (Actual)", "Qualified_Predicate",] +\
@@ -49,14 +54,14 @@ def makeSummaryDF(kgx_summ_dicts:list[dict],rollup:bool=True):
                       [ "Knowledge-Level Terms", "Agent-Type Terms"] +\
                       output_roles +\
                       output_pub_cnt +\
+                      output_evidence_cnt +\
                       ["Edge Properties"]
     
     if(not rollup):
         output_columns.remove("SCat (Actual)")
         output_columns.remove("OCat (Actual)")
     
-    df = pd.DataFrame.from_records(kgx_summ_dicts,columns=output_columns)
-    df.sort_values(["Predicate","SCat","OCat", "Qualified_Predicate"])
+    df = pd.DataFrame.from_records(kgx_summ_dicts,columns=output_columns).sort_values(["Predicate","SCat","OCat", "Qualified_Predicate"])
     return df
 
 def makeSampleDF(kgx_samples:list[dict]):

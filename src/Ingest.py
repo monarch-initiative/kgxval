@@ -8,6 +8,7 @@ from bmt.utils import parse_name
 
 def findNodeFile(ingest_dir, find_normalized=True) -> Optional[str]:
     for (root,_,files) in os.walk(ingest_dir):
+        if(root.endswith("/source_data")):continue
         for filename in files:
             if(not find_normalized):
                 if(filename.endswith("nodes.jsonl") and not filename.endswith("normalized_nodes.jsonl")):
