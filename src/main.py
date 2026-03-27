@@ -32,7 +32,7 @@ def main():
     load_dotenv()
     ingest_dir = os.getenv("INGEST_TOP_LEVEL_DIR")
     if ingest_dir == None:
-        raise ValueError(f"Can't find enviornment variable $INGEST_TOP_LEVEL_DIR")
+        raise ValueError(f"Can't find environment variable $INGEST_TOP_LEVEL_DIR")
     ingest_dict = makeIngestObjsDict(ingest_dir)
 
     hp_cats = [

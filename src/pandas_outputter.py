@@ -32,7 +32,7 @@ def getSourceRolesFromDictList(kgx_summ_dicts: list[KGX_SUMM]) -> list[str]:
         "Supporting Data Source",
         "Aggregator Knowledge Source",
     ]:
-        # This gets all of the string lengths for all of the dictonaries[$ROLE] values.
+        # This gets all of the string lengths for all of the dictionaries[$ROLE] values.
         role_val_lens = [len(d.get(role, "")) for d in kgx_summ_dicts]
         # If *any* of the values recorded for $ROLE have any text in them, make $ROLE a column in the csv.
         # This rigamorale is necessary in case a knowledge provider gives a dict with "SuppKS" as a key

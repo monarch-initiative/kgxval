@@ -158,7 +158,7 @@ class SPQOStats:
             if potential_prop in NONPROPERTY_KEYS:
                 continue  # This isn't a property
             if self.testQualifier(potential_prop):
-                continue  # This is a qualifier or role, not a proprety
+                continue  # This is a qualifier or role, not a property
             if potential_prop in self.prop_set:
                 continue  # We've already seen this property, no reason to check if it's populated.
 
@@ -168,7 +168,7 @@ class SPQOStats:
 
     def _updateQualifiers(self, edge: KGX_EDGE):
         """If a key appears in the edge dict ending in either _qualifier or role - check if the value is properly populated.
-        If it is, add it into our big dictonary of qualifiers with their values."""
+        If it is, add it into our big dictionary of qualifiers with their values."""
         for potential_qual, val in edge.items():
             if self.testQualifier(potential_qual) and self.testPopulatedVal(val):
                 self.qualifier_vals[potential_qual].add(makePipeJoinedStringIfList(val))
@@ -390,7 +390,7 @@ class KGXSummarizer(Ingest):
         )
 
     def _getBestCat(self, category_list: Collection[str]) -> str:
-        """This function collpases a list of categories down to a single "most important" category.
+        """This function collapses a list of categories down to a single "most important" category.
         It's fairly arbitrary, but if we don't do this, summarization is mostly worthless.
         """
         # First see if we can hit any of the "high priority categories"
