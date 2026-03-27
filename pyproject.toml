@@ -39,3 +39,29 @@ package = true
 
 [tool.pytest.ini_options]
 pythonpath = "src"
+
+[tool.ruff]
+line-length = 120
+lint.extend-ignore = [
+
+]
+lint.exclude = []
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+lint.fixable = ["ALL"]
+# Select or ignore from https://beta.ruff.rs/docs/rules/
+lint.select = [
+    "B",  # bugbear
+    "D",  # pydocstyle
+    "E",  # pycodestyle errors
+    "F",  # Pyflakes
+    "I",  # isort 
+    "S",  # flake8-bandit
+    "W",  # Warning
+    "ARG",
+    "C90",
+]
+
+lint.unfixable = []
+target-version = "py310"
+
+lint.mccabe.max-complexity = 10
