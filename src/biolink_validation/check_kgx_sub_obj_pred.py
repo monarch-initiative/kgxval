@@ -3,7 +3,7 @@ from collections import defaultdict
 import csv
 import functools
 from typing import Iterable, Optional
-from Ingest import Ingest, expandCategories
+from ..Ingest import Ingest, expandCategories
 from pydantic import BaseModel
 from bmt import Toolkit
 from linkml_runtime.linkml_model.meta import SlotDefinition, ClassDefinition, Element, NCName
@@ -31,7 +31,7 @@ class SOPC(BaseModel, frozen=True):
                 "|".join(self.edge_cats)]
 
 def _getUniqueSOPCsForIngest(ingest:Ingest) -> Iterable[tuple[SOPC,int]]:
-    seen_sopcs = defaultdict(int)
+    seen_sopcs:defaultdict[SOPC,int] = defaultdict(int)
     for edge_dict in ingest.iter_edges():
         subject_node_id = edge_dict["subject"]
         object_node_id = edge_dict["object"]
@@ -132,7 +132,7 @@ def getObjRange(pred:Optional[str]) -> Optional[str]:
     is_a:Optional[str] = el.is_a
     return getObjRange(is_a)
 
-def _checkObjForPred(pred:str,node_obj_cats:tuple[str,...],ingest_name:str,normalized:str):
+def _checkObjForPred(pred:str,node_obj_cats:tuple[str,...],ingest_name:str,normalized:str) -> list[SPOCValidationError]:
     tk = get_toolkit()
     if(tk.get_element(pred)==None): return []
     pred_obj_range = getObjRange(pred)

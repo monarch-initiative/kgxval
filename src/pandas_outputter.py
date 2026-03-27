@@ -1,21 +1,22 @@
 from typing import Final, Iterable, Optional
-from Ingest import Ingest
-from KGXSummarizer import KGXSummarizer, SPQOStats, orderQualifiersForMatt
-from biolink_validation.check_kgx_blink_prefix import PREFIX_ERR, validateNodePrefixesForIngest
-from biolink_validation.check_kgx_sub_obj_pred import SPOCValidationError, findSubObjErrorsForIngest
+
+from .kgxval_types import INGEST_MAP, KGX_EDGE, KGX_SUMM
+from .KGXSummarizer import KGXSummarizer, SPQOStats, orderQualifiersForMatt
+from .biolink_validation.check_kgx_blink_prefix import PREFIX_ERR, validateNodePrefixesForIngest
+from .biolink_validation.check_kgx_sub_obj_pred import SPOCValidationError, findSubObjErrorsForIngest
 import pandas as pd
 from pydantic import BaseModel
 from tqdm import tqdm
 
-def getQualifiersFromDictList(kgx_summ_dicts:list[dict]) -> set[str]:
-    quals = set()
+def getQualifiersFromDictList(kgx_summ_dicts:list[KGX_SUMM]) -> set[str]:
+    quals = set[str]()
     for d in kgx_summ_dicts:
         for key in d.keys():
             if(SPQOStats.testQualifier(key)): quals.add(key)
     return quals
 
-def getSourceRolesFromDictList(kgx_summ_dicts:list[dict]) -> list[str]:
-    populated_roles = []
+def getSourceRolesFromDictList(kgx_summ_dicts:list[KGX_SUMM]) -> list[str]:
+    populated_roles = list[str]()
     for role in ["Primary Knowledge Source",
                   "Secondary Knowledge Source", 
                   "Supporting Data Source", 
@@ -28,21 +29,21 @@ def getSourceRolesFromDictList(kgx_summ_dicts:list[dict]) -> list[str]:
         if(len(role_val_lens)>0 and max(role_val_lens)>0):populated_roles.append(role)
     return populated_roles
 
-def getAllOtherKeys(sample_list:list[dict],current_cols:list[str]) -> list[str]:
+def getAllOtherKeys(sample_list:list[KGX_EDGE],current_cols:list[str]) -> list[str]:
     not_covered_keys:set[str] = set()
     for keys in [set(x.keys()) for x in sample_list]:
         not_covered_keys.update(keys.difference(current_cols))
     return sorted(not_covered_keys)
 
-def getShouldReportPublicationCount(kgx_summ_dicts:list[dict]):
+def getShouldReportPublicationCount(kgx_summ_dicts:list[KGX_SUMM]) -> list[str]:
     if any(["Publication Counts" in d for d in kgx_summ_dicts]): return ["Publication Counts"]
     else: return []
 
-def getShouldReportEvidenceCount(kgx_summ_dicts:list[dict]):
+def getShouldReportEvidenceCount(kgx_summ_dicts:list[KGX_SUMM]) -> list[str]:
     if any(["Evidence Counts" in d for d in kgx_summ_dicts]): return ["Evidence Counts"]
     else: return []
 
-def makeSummaryDF(kgx_summ_dicts:list[dict],rollup:bool=True):
+def makeSummaryDF(kgx_summ_dicts:list[KGX_SUMM],rollup:bool=True):
     output_quals = getQualifiersFromDictList(kgx_summ_dicts)
     output_roles = getSourceRolesFromDictList(kgx_summ_dicts)
     output_pub_cnt = getShouldReportPublicationCount(kgx_summ_dicts)
@@ -61,10 +62,10 @@ def makeSummaryDF(kgx_summ_dicts:list[dict],rollup:bool=True):
         output_columns.remove("SCat (Actual)")
         output_columns.remove("OCat (Actual)")
     
-    df = pd.DataFrame.from_records(kgx_summ_dicts,columns=output_columns).sort_values(["Predicate","SCat","OCat", "Qualified_Predicate"])
+    df = pd.DataFrame.from_records(kgx_summ_dicts,columns=output_columns).sort_values(["Predicate","SCat","OCat", "Qualified_Predicate"]) 
     return df
 
-def makeSampleDF(kgx_samples:list[dict]):
+def makeSampleDF(kgx_samples:list[KGX_SUMM]):
     output_quals = getQualifiersFromDictList(kgx_samples)
     output_roles = getSourceRolesFromDictList(kgx_samples)
 
@@ -118,12 +119,12 @@ class ExcelDFFlags(BaseModel):
     include_rollup:bool = True
     """If set, will make a sheet where the categories are rolled up to the hp_cats."""
 
-def makeExcelSheetForSource(ingest_dict:dict[str,dict[str,Ingest]],source_name:str,hp_cats:Iterable[str],outpath:str,config:ExcelDFFlags=ExcelDFFlags(),pbar:Optional[tqdm]=None):
+def makeExcelSheetForSource(ingest_dict:INGEST_MAP,source_name:str,hp_cats:Iterable[str],outpath:str,config:ExcelDFFlags=ExcelDFFlags(),pbar:Optional[tqdm]=None):
     unnorm_exists = ((source_name in ingest_dict) and ("not_normalized" in ingest_dict[source_name]))
     norm_exists = ((source_name in ingest_dict) and ("normalized" in ingest_dict[source_name]))
 
     if((not unnorm_exists) and (not norm_exists)):
-        writer = pd.ExcelWriter(outpath) #,engine='xlsxwriter'   # Creating Excel Writer Object from Pandas
+        writer = pd.ExcelWriter(outpath)
         blank_df = pd.DataFrame()
         blank_df.to_excel(writer,sheet_name="NO_FILES_FOR_INGEST",index=False)
         writer.close()
@@ -135,7 +136,7 @@ def makeExcelSheetForSource(ingest_dict:dict[str,dict[str,Ingest]],source_name:s
     prefix_errs:list[PREFIX_ERR] = list()
     sub_obj_errs:list[SPOCValidationError] = list()
     
-    writer = pd.ExcelWriter(outpath) #,engine='xlsxwriter'   # Creating Excel Writer Object from Pandas
+    writer = pd.ExcelWriter(outpath) # Creating Excel Writer Object from Pandas
 
     if(unnorm_exists):
         unnorm_ingest_obj = ingest_dict[source_name]["not_normalized"]

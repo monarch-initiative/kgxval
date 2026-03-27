@@ -35,16 +35,16 @@ def main():
     slurm_job = os.getenv("SLURM_ARRAY_TASK_ID")
     print(f"\n$SLURM_ARRAY_TASK_ID is {slurm_job}\n")
     for i,source_name in enumerate(pbar):
-        if(slurm_job is not None):
-            if(i==int(slurm_job)):
-                 print(f"\n === Executing build for source {i} - {source_name} === \n")
-            else:continue
-        else:
-             continue
+#        if(slurm_job is not None):
+#            if(i==int(slurm_job)):
+#                 print(f"\n === Executing build for source {i} - {source_name} === \n")
+#            else:continue
+#        else:
+#             continue
 #        print(i)
 #        continue
-        #if("dakp" not in source_name):
-        #    continue
+        if("cohd" not in source_name):
+            continue
         pbar.set_description(source_name)
         excel_sheet_flags = ExcelDFFlags(
              unnorm_samp=False,

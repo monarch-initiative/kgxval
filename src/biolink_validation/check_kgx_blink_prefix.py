@@ -1,10 +1,9 @@
 import functools
 from pathlib import Path
-from typing import Union
-from Ingest import Ingest, makeIngestObjsDict
+from ..Ingest import Ingest, makeIngestObjsDict
 from pydantic import BaseModel
 from bmt import Toolkit
-from linkml_runtime.linkml_model.meta import NCName
+from linkml_runtime.linkml_model.meta import NCName # pyright: ignore[reportMissingTypeStubs]
 
 class PREFIX_ERR(BaseModel,frozen=True):
     source:str
@@ -16,7 +15,7 @@ class PREFIX_ERR(BaseModel,frozen=True):
 def _getIDPrefixDict() -> dict[str,set[str]]:
     tk = Toolkit()
 
-    class_to_id_prefixes = {}
+    class_to_id_prefixes:dict[str,set[str]] = {}
     for class_name in tk.get_all_classes():
         el = tk.get_element(class_name)
         if(el==None):continue
@@ -35,7 +34,7 @@ def _printError(err_str:str, fail_on_invalid:bool):
         return
         print(err_str)
 
-def getNodeStructuralErrors(ingest,fail_on_invalid:bool) -> list[PREFIX_ERR]:
+def getNodeStructuralErrors(ingest:Ingest,fail_on_invalid:bool) -> list[PREFIX_ERR]:
     errors:list[PREFIX_ERR] = list()
     for node_dict in ingest.iter_nodes():
         if(":" not in node_dict["id"]): 
@@ -92,10 +91,12 @@ def main():
     import os
     load_dotenv()
     ingest_dir = os.getenv("INGEST_TOP_LEVEL_DIR")
-    ingest_dict = makeIngestObjsDict(ingest_dir)
-    for source_name in ingest_dict:
-        if("not_normalized" in ingest_dict[source_name]):
-            l = validateNodePrefixesForIngest(ingest_dict[source_name]["not_normalized"])
+    if(ingest_dir is None):raise ValueError(f"Need to populate $INGEST_TOP_LEVEL_DIR")
+    ingest_dicts = makeIngestObjsDict(ingest_dir)
+    if(len(ingest_dicts)<0):raise ValueError(f"Could not find any ingests at $INGEST_TOP_LEVEL_DIR --- {ingest_dir}")
+    for source_name in ingest_dicts:
+        if("not_normalized" in ingest_dicts[source_name]):
+            l = validateNodePrefixesForIngest(ingest_dicts[source_name]["not_normalized"])
             print(l)
 
 if(__name__=="__main__"):

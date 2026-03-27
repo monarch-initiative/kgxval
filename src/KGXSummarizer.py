@@ -1,10 +1,12 @@
 from collections import defaultdict
-from typing import Collection, Final, Iterable, Optional, Sized, overload
-from Ingest import Ingest
+from typing import Any, Collection, Iterable, Optional
+
+from .kgxval_types import KGX_EDGE, KGX_SUMM, PD_SUMM_ROW, SPQO_TUPLE
+from .Ingest import Ingest
 from pathlib import Path
 from pydantic import BaseModel
-from bmt import Toolkit
-from bmt.utils import parse_name
+from bmt import Toolkit # pyright: ignore[reportMissingTypeStubs]
+from bmt.utils import parse_name # pyright: ignore[reportMissingTypeStubs, reportUnknownVariableType]
 import numpy as np
 from tqdm import tqdm
 
@@ -23,15 +25,15 @@ def makePipeJoinedStringIfList(str_or_list:str|list[str])->str:
     elif(type(str_or_list)==list): return "|".join(str_or_list)
     raise ValueError
 
-def cleanPrefixesFromDictVals(dict:dict)->dict:
+def cleanPrefixesFromDictVals(dict:dict[str,Any])->dict[str,Any]:
     for (key,val) in list(dict.items()):
         if(type(val)==str):
             if(val.startswith("infores:")):dict[key]=val.replace("infores:","")
             if(val.startswith("biolink:")):dict[key]=val.replace("biolink:","")
     return dict
 
-def orderQualifiersForMatt(qualifiers):
-    ret_list = []
+def orderQualifiersForMatt(qualifiers:Iterable[str]) -> list[str]:
+    ret_list:list[str] = []
     for q in MATT_QUALIFIER_ORDER:
         if q in qualifiers: ret_list.append(q)
     for q in qualifiers:
@@ -50,7 +52,7 @@ class SPQO(BaseModel, frozen=True):
     pred:str
     q_pred:str
     ocat:str
-    def makeTuple(self) -> tuple[str,str,str,str]:
+    def makeTuple(self) -> SPQO_TUPLE:
         tup = (self.scat,self.pred,self.q_pred,self.ocat)
         return tup
 
@@ -65,10 +67,11 @@ class SPQOStats:
     sks_set:set[str]
     suppds_set:set[str]
     aks_set:set[str]
-    qualifier_vals:dict[str,set] #Dict of $qualifier -> {set of vals for $qualifier} 
+    qualifier_vals:dict[str,set[str]] #Dict of $qualifier -> {set of vals for $qualifier} 
     act_scats:set[str] #Actual subject categories
     act_ocats:set[str] #Actual object categories
     pub_cnts:list[int]
+    evidence_cnts:list[int]
 
     def __init__(self,spqo:SPQO,ingest:Ingest):
         self.spqo = spqo
@@ -85,6 +88,7 @@ class SPQOStats:
         self.act_scats = set()
         self.act_ocats = set()
         self.pub_cnts = []
+        self.evidence_cnts = []
 
     @staticmethod
     def testQualifier(potential_qual:str) -> bool:
@@ -92,15 +96,15 @@ class SPQOStats:
         return (potential_qual.endswith("_qualifier")) or (potential_qual.endswith("role"))
 
     @staticmethod
-    def testPopulatedVal(val) -> bool:
+    def testPopulatedVal(val:Optional[str|int]) -> bool:
         """This looks at the field that's attached to a key in an edge dict. These fields can be left null in a few weird ways.
         We just check if it isn't Null and also that it isn't an empty string."""
         if(val is None): return False
         if(type(val)==str and len(val)==0): return False
         return True
 
-    def _getPropertyKeys(self,edge:dict) -> set[str]:
-        props = set()
+    def _getPropertyKeys(self,edge:KGX_EDGE) -> set[str]:
+        props = set[str]()
         for potential_prop,val in edge.items():
             if(potential_prop in NONPROPERTY_KEYS): continue #This isn't a property
             if(self.testQualifier(potential_prop)): continue #This is a qualifier or role, not a proprety
@@ -109,49 +113,51 @@ class SPQOStats:
             if(self.testPopulatedVal(val)): props.add(potential_prop)
         return props
     
-    def _updateQualifiers(self,edge):
+    def _updateQualifiers(self,edge:KGX_EDGE):
         """If a key appears in the edge dict ending in either _qualifier or role - check if the value is properly populated.
         If it is, add it into our big dictonary of qualifiers with their values."""
         for potential_qual,val in edge.items():
             if(self.testQualifier(potential_qual) and self.testPopulatedVal(val)):
                 self.qualifier_vals[potential_qual].add(makePipeJoinedStringIfList(val))
 
-    def _updatePubCount(self,edge):
+    def _updatePubCount(self,edge:KGX_EDGE):
         if("publications" in edge):
             pub_cnt = len(edge["publications"])
             self.pub_cnts.append(pub_cnt)
 
-    def _updatePKS(self,edge):
+    def _updateEvidenceCount(self,edge:KGX_EDGE):
+        if("evidence_count" in edge):
+            self.evidence_cnts.append(int(edge["evidence_count"]))
+
+    def _updatePKS(self,edge:KGX_EDGE):
         if("sources" in edge): self.pks_set.update([s["resource_id"] for s in edge["sources"] if s["resource_role"]=="primary_knowledge_source"])
         elif("primary_knowledge_source" in edge): self.pks_set.add(edge["primary_knowledge_source"])
         
-    def _updateSKS(self,edge):
+    def _updateSKS(self,edge:KGX_EDGE):
         if("sources" in edge): self.sks_set.update([s["resource_id"] for s in edge["sources"] if s["resource_role"]=="secondary_knowledge_source"])
         elif("secondary_knowledge_source" in edge): self.sks_set.add(edge["secondary_knowledge_source"])
 
-    def _updateSuppDS(self,edge):
+    def _updateSuppDS(self,edge:KGX_EDGE):
         if("sources" in edge): self.suppds_set.update([s["resource_id"] for s in edge["sources"] if s["resource_role"]=="supporting_data_source"])
         elif("supporting_data_source" in edge): self.suppds_set.add(edge["supporting_data_source"])
-#        if("sources" in edge): self.suppks_set.update([s["resource_id"] for s in edge["sources"] if s["resource_role"]=="supporting_knowledge_source"])
-#        elif("supporting_knowledge_source" in edge): self.suppks_set.add(edge["supporting_knowledge_source"])
 
-
-
-    def _updateAKS(self,edge):
+    def _updateAKS(self,edge:KGX_EDGE):
         if("sources" in edge): self.aks_set.update([s["resource_id"] for s in edge["sources"] if s["resource_role"]=="aggregator_knowledge_source"])
         elif("aggregator_knowledge_source" in edge): self.aks_set.add(edge["aggregator_knowledge_source"])
 
-    def _updateActualSCats(self,edge):
+    def _updateActualSCats(self,edge:KGX_EDGE):
         """We have a set which tracks all of the subject categories which actually end up being mapped to data."""
         all_scats = self.ingest.get_node_id_category(edge["subject"])
         self.act_scats.update(all_scats)
 
-    def _updateActualOCats(self,edge):
+    def _updateActualOCats(self,edge:KGX_EDGE):
         """We have a set which tracks all of the subject categories which actually end up being mapped to data."""
-        all_ocats = self.ingest.get_node_id_category(edge["object"])
+        obj_name = edge["object"]
+        if(type(obj_name)!=str):raise ValueError(f"The field 'object' was of type {type(obj_name)} instead of str --- {KGX_EDGE} --- ")
+        all_ocats = self.ingest.get_node_id_category(obj_name)
         self.act_ocats.update(all_ocats)
 
-    def incrementStats(self,edge):
+    def incrementStats(self,edge:KGX_EDGE):
         self.cnt+=1
         kl_str = makePipeJoinedStringIfList(edge.get("knowledge_level",""))
         if(len(kl_str)>0): self.kl_set.add(kl_str)
@@ -164,6 +170,7 @@ class SPQOStats:
         self._updateQualifiers(edge)
 
         self._updatePubCount(edge)
+        self._updateEvidenceCount(edge)
 
         self._updatePKS(edge)
         self._updateSKS(edge)
@@ -188,8 +195,8 @@ class SPQOStats:
         retstr = f"(0 pubs:{no_pub_cnt},1 pub:{one_pub_cnt},>1 pubs:{twoplus_pub_cnt}) - Avg:{avg:.2f} - " + percentile_str
         return retstr
 
-    def makePDDict(self,kgx_infores,normalized,total_edge_cnt) -> dict:
-        output_dict:dict[str,float|int|str|tuple] = {
+    def makePdOutputRow(self,kgx_infores:str,normalized:str,total_edge_cnt:int) -> PD_SUMM_ROW:
+        output_dict:dict[str,float|int|str|SPQO_TUPLE] = {
             "KGX Infores":kgx_infores,
             "Normalized":normalized,
             "Edge Count":self.cnt,
@@ -212,9 +219,15 @@ class SPQOStats:
 
         if(len(self.pub_cnts)>0):
             #If there are any publications reported; we want to report the percentiles of all publication counts.
-            #To do, that, we assume any edge without publications has 0 pubs reported.
+            #To do so, we assume any edge without publications has 0 pubs reported.
             corrected_pub_cnts = self.pub_cnts + [0] * (self.cnt-len(self.pub_cnts))
             output_dict["Publication Counts"] = self._makePercentileStr(corrected_pub_cnts)
+
+        if(len(self.evidence_cnts)>0):
+            #If there are any "evidence_count" fields reported; we want to report the percentiles of these counts.
+            #To do so, we assume any edge without "evidence_count" reported has a value of 0.
+            corrected_evidence_cnts = self.evidence_cnts + [0] * (self.cnt-len(self.evidence_cnts))
+            output_dict["Evidence Counts"] = self._makePercentileStr(corrected_evidence_cnts)
 
         for qual,qual_set in self.qualifier_vals.items():
             output_dict[qual] = ", ".join(sorted(qual_set))
@@ -224,7 +237,7 @@ class SPQOStats:
             
 class KGXSummarizer(Ingest):
     tk:Toolkit
-    high_priority_desc_dict:dict[str,set]
+    high_priority_desc_dict:dict[str,set[str]]
     blink_class_to_depth:dict[str,int]
     spqo_to_stats:dict[SPQO,SPQOStats]
     total_edge_cnt:int
@@ -265,7 +278,7 @@ class KGXSummarizer(Ingest):
         if(len(category_list)==0):return "NO CATEGORY"
         return max(category_list,key=lambda cat:self.blink_class_to_depth[cat])
 
-    def _makeSPQOFromEdgeDict(self,edge:dict) -> SPQO:
+    def _makeSPQOFromEdgeDict(self,edge:KGX_EDGE) -> SPQO:
         all_scats = self.get_node_id_category(edge["subject"])
         all_ocats = self.get_node_id_category(edge["object"])
         pred = parse_name(edge["predicate"])
@@ -277,7 +290,7 @@ class KGXSummarizer(Ingest):
         ocat = self._getBestCat(all_ocats)
         return SPQO(scat=scat,pred=pred,q_pred=q_pred,ocat=ocat)
 
-    def summarize_edges(self) -> list[dict]:
+    def summarize_edges(self) -> list[KGX_SUMM]:
         self.total_edge_cnt = 0
         #spqo_to_stats:dict[SPQO,SPQOStats] = {}
         for edge_dict in tqdm(self.iter_edges()):
@@ -289,11 +302,11 @@ class KGXSummarizer(Ingest):
         self.summarize_edges_ran=True
         return self.get_pd_rows()
 
-    def sample_edges(self) -> list[dict]:
+    def sample_edges(self) -> list[KGX_EDGE]:
         #Makes it be so that if "sources" is present (which is a dict
         #that is {SOURCE_ROLE->INFORES,...}, that information is
         #instead provided as the edge_dict[source_role] .
-        def fixSources(edge_dict:dict)->dict:
+        def fixSources(edge_dict:KGX_EDGE)->KGX_EDGE:
             if("sources" not in edge_dict): return edge_dict
             for source_dict in edge_dict.get("sources",[]):
                 source_infores_id = source_dict["resource_id"].replace("infores:","")
@@ -303,7 +316,7 @@ class KGXSummarizer(Ingest):
             edge_dict.pop("sources")
             return edge_dict
         
-        edge_samples_for_spoq = defaultdict(list)
+        edge_samples_for_spoq:defaultdict[SPQO,list[KGX_EDGE]] = defaultdict(list)
         for edge_dict in self.iter_edges(attach_original_json=True):
             edge_spqo = self._makeSPQOFromEdgeDict(edge_dict)
             if(len(edge_samples_for_spoq[edge_spqo])>4):continue
@@ -316,12 +329,14 @@ class KGXSummarizer(Ingest):
             edge_samples_for_spoq[edge_spqo].append(edge_dict)
 
         #Gather all samples for each spoq and make one big list.
-        list_of_all_samples = []
+        list_of_all_samples:list[KGX_EDGE] = []
         for edge_sample_list in edge_samples_for_spoq.values():
             list_of_all_samples.extend(edge_sample_list)
         return list_of_all_samples
 
-    def get_pd_rows(self) -> list[dict]:
+    def get_pd_rows(self) -> list[PD_SUMM_ROW]:
         if(not self.summarize_edges_ran):
             raise RuntimeError(f"Need to run \"summarize_edges\" before \"get_pd_rows\"")
-        return [x.makePDDict(kgx_infores=self.ingest_name,normalized=self.norm_status,total_edge_cnt=self.total_edge_cnt) for x in self.spqo_to_stats.values()]
+        return [x.makePdOutputRow(kgx_infores=self.ingest_name,normalized=self.norm_status,total_edge_cnt=self.total_edge_cnt) 
+                for x in 
+                self.spqo_to_stats.values()]

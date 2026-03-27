@@ -12,7 +12,11 @@ license = "BSD-3-Clause"
 dependencies = [
     "bmt",
     "pandas",
+    "pandas-stubs", #Makes the type checker happy.
     "pydantic",
+    "xlsxwriter>=3.0.3",
+    "pyxlsb>=1.0.10",
+    "odfpy>=1.4.1",
 ]
 
 #[project.optional-dependencies]
@@ -21,14 +25,16 @@ dev = [
     "tqdm",
     "pytest",
     "dotenv",
+    "ruff>=0.15.8",
+    "black>=26.3.1",
 ]
 
 [tool.uv]
 default-groups = ["dev"]
 package = true
 
-[tool.uv.sources]
-bmt = { git = "https://github.com/biolink/biolink-model-toolkit.git", rev = "master" }
+#[tool.uv.sources]
+#bmt = { git = "https://github.com/biolink/biolink-model-toolkit.git", rev = "master" }
 
 [tool.pytest.ini_options]
 pythonpath = "src"

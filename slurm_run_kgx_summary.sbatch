@@ -16,7 +16,8 @@
 #SBATCH --time=2-00:00:00
 #
 #SBATCH --mem=250GB
-#SBATCH --array=0-28
+#SBATCH --array=0-0
+#--array=0-28
 #SBATCH --output=ignore/slurm_output/slurm-%A_%a.out
 ## Command(s) to run (example):
 

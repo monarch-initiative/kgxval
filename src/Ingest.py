@@ -1,12 +1,13 @@
 from collections import defaultdict
 import os
 from pathlib import Path
-from typing import Iterable, Optional
-from utils import TSVDictGen, JSONLDictGen
-from bmt import Toolkit
-from bmt.utils import parse_name
+from typing import Any, Iterable, Optional
+from .kgxval_types import INGEST_MAP
+from .utils import TSVDictGen, JSONLDictGen
+from bmt import Toolkit # pyright: ignore[reportMissingTypeStubs]
+from bmt.utils import parse_name # pyright: ignore[reportUnknownVariableType, reportMissingTypeStubs]
 
-def findNodeFile(ingest_dir, find_normalized=True) -> Optional[str]:
+def findNodeFile(ingest_dir:str|Path, find_normalized:bool=True) -> Optional[str]:
     for (root,_,files) in os.walk(ingest_dir):
         if(root.endswith("/source_data")):continue
         for filename in files:
@@ -17,7 +18,7 @@ def findNodeFile(ingest_dir, find_normalized=True) -> Optional[str]:
                 if(filename.endswith("normalized_nodes.jsonl")):
                     return os.path.join(root,filename)
 
-def findEdgeFile(ingest_dir, find_normalized=True) -> Optional[str]:
+def findEdgeFile(ingest_dir:str|Path, find_normalized:bool=True) -> Optional[str]:
     for (root,_,files) in os.walk(ingest_dir):
         for filename in files:
             if(not find_normalized):
@@ -47,21 +48,18 @@ class Ingest:
         self.node_to_name: Optional[dict[str,str]] = None
         self.node_to_equivs: Optional[dict[str,tuple[str,...]]] = None
 
-    def iter_nodes(self) -> Iterable[dict]:
+    def iter_nodes(self) -> Iterable[dict[str,Any]]:
         for node_dict in self.ingest_gen(self.node_path):
             yield node_dict
 
     manadatory_keys = set(["subject","object","predicate"])
-    def _validateEdge(self,edge_dict:dict):
-        if(type(edge_dict)==list):
-            print("WEIRD")
-            print(self.ingest_name,self.norm_status)
+    def _validateEdge(self,edge_dict:dict[str,Any]):
         if(len(self.manadatory_keys.intersection(edge_dict.keys()))!=3):
                 print(f"WEIRD EDGE: From {self.ingest_name}/{self.norm_status} --- Missing {self.manadatory_keys.difference(edge_dict.keys())} --- {edge_dict}")
                 return False
         return True
 
-    def iter_edges(self,attach_original_json:bool=False) -> Iterable[dict]:
+    def iter_edges(self,attach_original_json:bool=False) -> Iterable[dict[str,Any]]:
         for edge_dict in self.ingest_gen(self.edge_path,attach_original_json):    
             if(self._validateEdge(edge_dict)):yield edge_dict
 
@@ -104,7 +102,7 @@ class Ingest:
             self.node_to_category = self._make_node_to_category_dict()
         return self.node_to_category 
     
-    def get_node_id_category(self,node_id):
+    def get_node_id_category(self,node_id:str):
         node_to_cat = self.get_node_to_category_dict()
         if(node_id not in node_to_cat):
             raise ValueError(f"{self.ingest_name}/{self.norm_status} === {node_id} could not be found in {self.node_path}")
@@ -123,14 +121,14 @@ class Ingest:
             self.node_to_name = self._make_node_to_name_dict()
         return self.node_to_name
 
-    def get_node_id_name(self,node_id):
+    def get_node_id_name(self,node_id:str):
         """Get the name of a node based on it's ID (the name provided in the node KGX file)."""
         node_to_name = self.get_node_to_name_dict()
         if(node_id not in node_to_name):
             raise ValueError(f"{self.ingest_name}/{self.norm_status} === {node_id} could not be found in {self.node_path}")
         return node_to_name[node_id]
 
-def makeIngestObjsFromTopLevelDir(top_lvl_dir_path:str) -> list[Ingest]:
+def makeIngestObjsFromTopLevelDir(top_lvl_dir_path:Path|str) -> list[Ingest]:
     def makeNotNormalizedIngest(source_name:str,source_dir:str) -> list[Ingest]:
         unnorm_node_path = findNodeFile(source_dir,find_normalized=False)
         unnorm_edge_path = findEdgeFile(source_dir,find_normalized=False)
@@ -153,8 +151,8 @@ def makeIngestObjsFromTopLevelDir(top_lvl_dir_path:str) -> list[Ingest]:
         ingest_list += makeNormalizedIngest(source_name,source_dir)
     return ingest_list
 
-def makeIngestObjsDict(top_level_dir_path) -> dict[str,dict[str,Ingest]]:
-    ingest_dict = defaultdict(dict)
+def makeIngestObjsDict(top_level_dir_path:Path|str) -> INGEST_MAP:
+    ingest_dict:dict[str,dict[str,Ingest]] = defaultdict(dict)
     for ingest_obj in makeIngestObjsFromTopLevelDir(top_level_dir_path):
         (source_name,norm) = (ingest_obj.ingest_name,ingest_obj.norm_status)
         ingest_dict[source_name][norm] = ingest_obj
