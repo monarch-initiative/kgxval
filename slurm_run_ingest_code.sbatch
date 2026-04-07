@@ -3,8 +3,7 @@
 #SBATCH --job-name=translator-kgx-build
 #
 # Partition:
-#SBATCH --partition=inter
-#--partition=largemem
+#SBATCH --partition=largemem
 #
 ### scontrol show partitions | grep PartitionName | sed s/PartitionName=//
 #
