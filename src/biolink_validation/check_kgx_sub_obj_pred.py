@@ -1,16 +1,16 @@
-from collections import defaultdict
 import csv
 import functools
+from collections import defaultdict
 from typing import Iterable, Optional
-from ..Ingest import Ingest, expandCategories
-from pydantic import BaseModel
+
 from bmt import Toolkit
 from linkml_runtime.linkml_model.meta import (
-    SlotDefinition,
     ClassDefinition,
-    Element,
-    NCName,
+    SlotDefinition,
 )
+from pydantic import BaseModel
+
+from lib.Ingest import Ingest, expandCategories
 
 tk: Optional[Toolkit] = None
 
@@ -25,7 +25,8 @@ def get_toolkit() -> Toolkit:
 class SOPC(BaseModel, frozen=True):
     """This class represents the most core information for validating an edge predicate and categories.
     We only need to know what the subject categories were, what the object categories were, the
-    predicate, and all of the edge categories."""
+    predicate, and all of the edge categories.
+    """
 
     node_sub_cats: tuple[str, ...]
     node_obj_cats: tuple[str, ...]
@@ -69,13 +70,13 @@ def writeSOPCsToFile(ingest: Ingest, outpath: str):
         writer = csv.writer(f)
         writer.writerow(
             [
-                "INGEST_NAME",
-                "NORMALIZED",
-                "NODE_SUBJECTS",
-                "NODE_OBJECTS",
-                "PREDICATE",
-                "EDGE_CATEGORIES",
-                "COUNT",
+                "source",
+                "norm_status",
+                "node_subjects",
+                "node_objects",
+                "predicate",
+                "edge_categories",
+                "count",
             ]
         )
         for sopc, cnt in _getUniqueSOPCsForIngest(ingest):

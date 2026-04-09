@@ -1,11 +1,13 @@
 import functools
 from pathlib import Path
-from ..Ingest import Ingest, makeIngestObjsDict
-from pydantic import BaseModel
+
 from bmt import Toolkit
 from linkml_runtime.linkml_model.meta import (
     NCName,
 )  # pyright: ignore[reportMissingTypeStubs]
+from pydantic import BaseModel
+
+from lib.Ingest import Ingest, makeIngestObjsDict
 
 
 class PREFIX_ERR(BaseModel, frozen=True):
@@ -35,7 +37,8 @@ def _getIDPrefixDict() -> dict[str, set[str]]:
 
 def _printError(err_str: str, fail_on_invalid: bool):
     """This is called when there is a syntax error in a node jsonl dict.
-    You can immediately stop"""
+    You can immediately stop
+    """
     if fail_on_invalid:
         raise ValueError(err_str)
     else:
@@ -136,13 +139,14 @@ def writeErrorsToFile(error_dict: dict[tuple[str, str], set[str]], output_path: 
 
 
 def main():
-    from dotenv import load_dotenv
     import os
+
+    from dotenv import load_dotenv
 
     load_dotenv()
     ingest_dir = os.getenv("INGEST_TOP_LEVEL_DIR")
     if ingest_dir is None:
-        raise ValueError(f"Need to populate $INGEST_TOP_LEVEL_DIR")
+        raise ValueError("Need to populate $INGEST_TOP_LEVEL_DIR")
     ingest_dicts = makeIngestObjsDict(ingest_dir)
     if len(ingest_dicts) < 0:
         raise ValueError(

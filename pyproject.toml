@@ -17,6 +17,8 @@ dependencies = [
     "xlsxwriter>=3.0.3",
     "pyxlsb>=1.0.10",
     "odfpy>=1.4.1",
+    "types-tqdm",
+    "click",
 ]
 
 #[project.optional-dependencies]
