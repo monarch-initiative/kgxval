@@ -4,6 +4,7 @@ from pathlib import Path
 from lib.Ingest import makeIngestObjsFromTopLevelDir, makeNormalizedIngest, makeNotNormalizedIngest
 from lib.kgxval_types import INGEST_MAP
 from lib.pandas_outputter import ExcelDFFlags, makeExcelSheetForSource
+#from lib.pandas_outputter import ExcelDFFlags, makeExcelSheetForSource
 
 @click.command("main")
 @click.option(
@@ -18,22 +19,22 @@ from lib.pandas_outputter import ExcelDFFlags, makeExcelSheetForSource
 )
 @click.option(
     "--output_dir",
-    help="""Where we should output the XLSX files to."""
+    help="""Where we should output the XLSX files to.""",
+    default="data/output"
 )
 def main(ingest_dir:str,output_dir:str):
     print(ingest_dir)
     source_name = Path(ingest_dir).stem
     ingests = makeNotNormalizedIngest(source_name, ingest_dir)
     ingests += makeNormalizedIngest(source_name, ingest_dir)
-    ingest_dict:INGEST_MAP = {}
+    ingest_dict:INGEST_MAP = {source_name:{}}
     for ingest_obj in ingests:
         source_name, norm = (ingest_obj.ingest_name, ingest_obj.norm_status)
         ingest_dict[source_name][norm] = ingest_obj
 
-    excel_sheet_flags = ExcelDFFlags(unnorm_samp=True, unnorm_summ=True)
-
     datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
 
+    excel_sheet_flags = ExcelDFFlags(unnorm_samp=True, unnorm_summ=True)
     makeExcelSheetForSource(
         ingest_dict=ingest_dict,
         source_name=source_name,

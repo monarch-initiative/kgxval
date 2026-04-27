@@ -54,6 +54,6 @@ def main():
         )
 
 if __name__ == "__main__":
-    cntAbstInTMKP()
+    #cntAbstInTMKP()
     #cntPMIDsInTMKP()
-    #main()
+    main()
