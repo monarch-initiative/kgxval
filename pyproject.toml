@@ -10,7 +10,7 @@ readme = "README.md"
 license = "BSD-3-Clause"
 
 dependencies = [
-    "bmt",
+    "bmt>=1.4.8",
     "pandas",
     "pandas-stubs", #Makes the type checker happy.
     "pydantic",
