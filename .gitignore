@@ -209,3 +209,7 @@ uv.lock
 
 ignore/*
 data/output/*
+data/*
+*.pyi
+*.ipynb
+graph-metadata.json

@@ -16,14 +16,7 @@
 #SBATCH --time=2-00:00:00
 #
 #SBATCH --mem=250GB
-#SBATCH --array=0-31
-#--array=0-31
-#SBATCH --output=ignore/slurm_output/slurm-%A_%a.out
-## Command(s) to run (example):
+#
+#SBATCH --output=ignore/slurm_output/slurm-%j.out
 
-#--begin=now+4hour
-
-mkdir -p ignore/slurm_output
-uv sync
-. .env
-uv run many_sources $INGEST_TOP_LEVEL_DIR --task_number $SLURM_ARRAY_TASK_ID
+uv run python src/kgxval/dir/analyze_predicate_prevelance.py

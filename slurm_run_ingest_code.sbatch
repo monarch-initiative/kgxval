@@ -20,7 +20,7 @@
 ## Command(s) to run (example):
 
 mkdir -p ignore/slurm_output
-rm ignore/translator-ingests/data/* -rf
+#rm ignore/translator-ingests/data/* -rf
 cd ignore/translator-ingests
 
 make run

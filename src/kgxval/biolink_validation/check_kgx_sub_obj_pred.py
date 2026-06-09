@@ -10,7 +10,7 @@ from linkml_runtime.linkml_model.meta import (
 )
 from pydantic import BaseModel
 
-from lib.Ingest import Ingest, expandCategories
+from kgxval.dir.Ingest import Ingest, expandCategories
 
 tk: Optional[Toolkit] = None
 

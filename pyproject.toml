@@ -19,6 +19,7 @@ dependencies = [
     "odfpy>=1.4.1",
     "types-tqdm",
     "click",
+    "openpyxl",
 ]
 
 #[project.optional-dependencies]
@@ -36,8 +37,8 @@ dev = [
 default-groups = ["dev"]
 package = true
 
-#[tool.uv.sources]
-#bmt = { git = "https://github.com/biolink/biolink-model-toolkit.git", rev = "master" }
+[tool.uv.sources]
+bmt = { git = "https://github.com/biolink/biolink-model-toolkit.git", rev = "master" }
 
 [tool.pytest.ini_options]
 pythonpath = "src"
@@ -67,3 +68,13 @@ lint.unfixable = []
 target-version = "py310"
 
 lint.mccabe.max-complexity = 10
+
+
+[project.scripts]
+many_sources = "kgxval.cli:many_sources"
+merge_sources_together = "kgxval.cli:merge_sources_together"
+
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"

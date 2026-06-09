@@ -1,6 +1,6 @@
 #!/bin/bash
 # Job name:
-#SBATCH --job-name=kgx-summarization
+#SBATCH --job-name=kgx-mega-summarization
 #
 # Partition:
 #SBATCH --partition=largemem
@@ -16,14 +16,11 @@
 #SBATCH --time=2-00:00:00
 #
 #SBATCH --mem=250GB
-#SBATCH --array=0-31
-#--array=0-31
-#SBATCH --output=ignore/slurm_output/slurm-%A_%a.out
-## Command(s) to run (example):
+#SBATCH --output=ignore/slurm_output/mega_slurm-%A.out
 
 #--begin=now+4hour
 
 mkdir -p ignore/slurm_output
 uv sync
 . .env
-uv run many_sources $INGEST_TOP_LEVEL_DIR --task_number $SLURM_ARRAY_TASK_ID
+uv run merge_sources_together $INGEST_TOP_LEVEL_DIR

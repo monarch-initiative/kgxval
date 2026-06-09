@@ -7,7 +7,8 @@ from linkml_runtime.linkml_model.meta import (
 )  # pyright: ignore[reportMissingTypeStubs]
 from pydantic import BaseModel
 
-from lib.Ingest import Ingest, makeIngestObjsDict
+from kgxval.dir.Ingest import Ingest, makeIngestObjsDict
+
 
 
 class PREFIX_ERR(BaseModel, frozen=True):
