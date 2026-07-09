@@ -26,8 +26,6 @@ def main():
         raise ValueError("Can't find environment variable $INGEST_TOP_LEVEL_DIR")
     ingest_dict = makeIngestObjsDict(ingest_dir)
     
-    print(ingest_dict)
-    return
     #hp_cats = [
     #    "anatomical entity",
     #    "gene or gene product",
@@ -48,6 +46,7 @@ def main():
     slurm_job = os.getenv("SLURM_ARRAY_TASK_ID")
     print(f"\n$SLURM_ARRAY_TASK_ID is {slurm_job}\n")
     for i, source_name in enumerate(pbar):
+        if(source_name!="string"):continue
         #If $SLURM_ARRAY_TASK_ID is set; we're subdividing the task between multiple different compute cores.
         #This code will skip/continue past all datasets except dataset i==$SLURM_ARRAY_TASK_ID
         if(slurm_job is not None):

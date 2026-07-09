@@ -71,9 +71,9 @@ lint.mccabe.max-complexity = 10
 
 
 [project.scripts]
-many_sources = "kgxval.cli:many_sources"
+ingest_summary = "kgxval.cli:ingest_summary"
 merge_sources_together = "kgxval.cli:merge_sources_together"
-
+norm_errors = "kgxval.cli:find_normalization_cat_errors"
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]

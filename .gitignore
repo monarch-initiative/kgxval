@@ -213,3 +213,5 @@ data/*
 *.pyi
 *.ipynb
 graph-metadata.json
+
+FORMATTED/

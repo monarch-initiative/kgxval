@@ -1,6 +1,6 @@
 #!/bin/bash
 # Job name:
-#SBATCH --job-name=kgx-summarization
+#SBATCH --job-name=ocat-pred-summarization
 #
 # Partition:
 #SBATCH --partition=largemem

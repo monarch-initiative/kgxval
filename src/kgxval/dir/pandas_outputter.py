@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Final, Iterable, Optional
 
 import pandas as pd
@@ -224,15 +225,24 @@ def makeExcelSheetForSource(
         blank_df.to_excel(writer, sheet_name="NO_FILES_FOR_INGEST", index=False)
         writer.close()
         return
+    class CurrentTime:
+        def __init__(self):
+            self.currenttime = datetime.now()
+    currentTime = CurrentTime()
 
-    def updatePBar(step: str):
+    def updatePBar(step: str,time_print=True):
         if pbar is not None:
+            last_step_name = pbar.desc
+            old_time = currentTime.currenttime
+            currentTime.currenttime = datetime.now()
+            if(time_print):
+                print(f"{last_step_name} took {str(currentTime.currenttime-old_time)}")
             pbar.set_description(f"{source_name} -- {step}")
 
     prefix_errs: list[PREFIX_ERR] = list()
     sub_obj_errs: list[SPOCValidationError] = list()
 
-    writer = pd.ExcelWriter(outpath)  # Creating Excel Writer Object from Pandas
+    writer = pd.ExcelWriter(outpath,engine="openpyxl")  # Creating Excel Writer Object from Pandas
 
     if unnorm_exists:
         unnorm_ingest_obj = ingest_dict[source_name]["not_normalized"]

@@ -1,9 +1,11 @@
+import csv
 from datetime import datetime
 from typing import Optional
 import click
 from pathlib import Path
 
 import pandas as pd
+from kgxval.biolink_validation.normalization_errors import find_normalization_errors
 from kgxval.dir.KGXSummarizer import KGXSummarizer
 from kgxval.dir.Ingest import makeIngestObjsDict, makeIngestObjsFromTopLevelDir, makeNormalizedIngest, makeNotNormalizedIngest
 from kgxval.dir.kgxval_types import INGEST_MAP
@@ -49,7 +51,7 @@ def one_source(ingest_dir:str,output_dir:str):
         config=excel_sheet_flags,
     )
 
-@click.command("many_sources")
+@click.command("ingest_summary")
 @click.argument(
     "top_level_dir",
     type=str,
@@ -61,7 +63,7 @@ def one_source(ingest_dir:str,output_dir:str):
     type=int,
     default=None,
 )
-def many_sources(top_level_dir:str,task_number:Optional[int]):
+def ingest_summary(top_level_dir:str,task_number:Optional[int]):
     ingest_dict = makeIngestObjsDict(top_level_dir)
     hp_cats:tuple[str,...] = tuple([
         "gene or gene product",
@@ -84,7 +86,10 @@ def many_sources(top_level_dir:str,task_number:Optional[int]):
                 print(f"\n === Executing build for source {i} - {source_name} === \n")
             else:continue
         pbar.set_description(source_name)
-        excel_sheet_flags = ExcelDFFlags(unnorm_samp=False, unnorm_summ=False)
+        excel_sheet_flags = ExcelDFFlags(unnorm_samp=False,
+                                        unnorm_summ=False,
+                                        blink_subobj=False,
+                                        )
 
         makeExcelSheetForSource(
             ingest_dict=ingest_dict,
@@ -100,7 +105,14 @@ def many_sources(top_level_dir:str,task_number:Optional[int]):
     "top_level_dir",
     type=str,
 )
-def merge_sources_together(top_level_dir:str):
+@click.option(
+    "--ignore_sem_icees_uber",
+    type=bool,
+    default=False,
+)
+def merge_sources_together(top_level_dir:str,ignore_sem_icees_uber:bool):
+    if(ignore_sem_icees_uber):
+        print("Ignoring semmed icees and ubergraph")
     ingest_dict = makeIngestObjsDict(top_level_dir)
 
     datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
@@ -118,14 +130,37 @@ def merge_sources_together(top_level_dir:str):
     norm_summ = KGXSummarizer.initWithIngestObj(first_ingest_obj, [])
     for i, source_name in enumerate(pbar):
         pbar.set_description(source_name)
+        if(ignore_sem_icees_uber):
+            if(source_name in ["semmeddb","icees","ubergraph"]):continue
+            else:pass
+        print(f"Adding {source_name} to the summary")
         ingest_obj = ingest_dict[source_name]["normalized"]
         norm_summ.add_summarize_edges_for_iter(ingest_obj.iter_edges(),ingest_obj,source_name)
-    writer = pd.ExcelWriter(f"data/merged_output/merged_summary_{datestr}.xlsx") 
+    if(ignore_sem_icees_uber):
+        xlsx_name = f"data/output/{datestr}/_merged_summary_NOSEMMED-ICEES-UBERGRAPH_{datestr}.xlsx"
+    else:
+        xlsx_name = f"data/output/{datestr}/_merged_summary_{datestr}.xlsx"
+    writer = pd.ExcelWriter(xlsx_name) 
     norm_df = makeSummaryDF(norm_summ.get_pd_rows(), rollup=False)
     norm_df.to_excel(
             writer, sheet_name=f"normalized_merge_summary", index=False
     )
     writer.close()
+
+@click.command("find_normalization_cat_errors")
+@click.argument(
+    "top_level_dir",
+    type=str,
+)
+def find_normalization_cat_errors(top_level_dir:str):
+    ingest_dict = makeIngestObjsDict(top_level_dir)
+
+    datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
+    outdir = f"data/output/{datestr}/norm_errors"
+    os.makedirs(outdir, exist_ok=True)
+    misses_csv_path = os.path.join(outdir,'misses.csv')
+    matches_csv_path = os.path.join(outdir,'matches.csv')
+    find_normalization_errors(ingest_dict,misses_csv_path,matches_csv_path)
 
 if __name__ == "__main__":
    #main()

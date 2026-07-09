@@ -23,4 +23,5 @@
 mkdir -p ignore/slurm_output
 uv sync
 . .env
-uv run merge_sources_together $INGEST_TOP_LEVEL_DIR
+uv run merge_sources_together $INGEST_TOP_LEVEL_DIR --ignore_sem_icees_uber True
+uv run merge_sources_together $INGEST_TOP_LEVEL_DIR --ignore_sem_icees_uber False

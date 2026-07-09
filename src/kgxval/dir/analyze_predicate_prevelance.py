@@ -1,8 +1,11 @@
 from datetime import datetime
 import os
+from typing import Iterable
 
 import pandas as pd
-from kgxval.dir.Ingest import iter_all_edges, makeIngestObjsDict
+from kgxval.dir.KGXSummarizer import KGXSummarizer
+from kgxval.utils.format_xlsx import formatXlsx
+from kgxval.dir.Ingest import Ingest, iter_all_edges, makeIngestObjsDict
 from kgxval.dir.kgxval_types import INGEST_MAP
 from collections import defaultdict
 from tqdm import tqdm
@@ -10,102 +13,127 @@ from tqdm import tqdm
 from collections import defaultdict
 from itertools import count
 
+class NodeIDsOnly:
+    node_ids:set[int]
+    def __init__(self):
+        self.node_ids = set()
+    def add_id(self,node_id:int):
+        self.node_ids.add(node_id)
+    def get_nodes_len(self) -> int:
+        return len(self.node_ids)
+
 class NodeIDAndInfores:
     node_ids:set[int]
     inforeses:set[str]
+    node_ids_by_infores:defaultdict[str,set[int]]
     def __init__(self):
         self.node_ids = set[int]()
         self.inforeses = set[str]()
+        self.node_ids_by_infores = defaultdict(set)
     def add_id_infores(self,node_id:int,infores:str):
         self.node_ids.add(node_id)
         self.inforeses.add(infores)
+        self.node_ids_by_infores[infores].add(node_id)
+
     def get_nodes_len(self) -> int:
         return len(self.node_ids)
+    
     def get_infores_str(self) -> str:
-        return ", ".join(sorted(self.inforeses))
+        l = []
+        for infores in self.inforeses:
+            infores_cnt = len(self.node_ids_by_infores[infores])
+            l.append((infores_cnt,infores))
+        s = ", ".join([f"{info} ({info_cnt})" for (info_cnt,info) in sorted(l,reverse=True)])
+        return s
+        #return ", ".join(sorted(self.inforeses))
 
+class CatalogPredSink:
+    sink_dict: defaultdict[str,NodeIDAndInfores]
+    pred_dict: defaultdict[str,NodeIDsOnly]
+    sink_pred_dict: defaultdict[str,defaultdict[str,NodeIDsOnly]] 
+    def __init__(self):
+        self.sink_dict = defaultdict(NodeIDAndInfores)
+        self.pred_dict = defaultdict(NodeIDsOnly)
+        self.sink_pred_dict = defaultdict(lambda: defaultdict(NodeIDsOnly))
+
+    def update(self,node_id:int,sink_cat:str,pred:str,infores:str):
+        self.sink_dict[sink_cat].add_id_infores(node_id,infores)
+        self.pred_dict[pred].add_id(node_id)
+        self.sink_pred_dict[sink_cat][pred].add_id(node_id)
+
+    def makePredStringForSink(self,sink_key) -> str:
+        l = []
+        for pred in self.sink_pred_dict[sink_key]:
+            pred_cnt = self.sink_pred_dict[sink_key][pred].get_nodes_len()
+            l.append((pred_cnt,pred))
+        s = ", ".join([f"{pred} ({pred_cnt})" for (pred_cnt,pred) in sorted(l,reverse=True)])
+        return s
+    
+    def makeSinkDF(self,source_name,tot) -> list[tuple]:
+        rows = []
+        for sink in self.sink_dict:
+            sink_cnt = self.sink_dict[sink].get_nodes_len()
+            perc = sink_cnt/tot
+            preds = self.makePredStringForSink(sink)
+            infores = self.sink_dict[sink].get_infores_str()
+            rows.append((source_name,sink,sink_cnt,perc,preds,infores))
+        return rows
 
 #Currently bidirectional
-def countBiolinkNumberOfOccurs(blink_class:str,ingest_map:INGEST_MAP,top_level_cat:bool=True):
-    node_to_int = defaultdict(count().__next__)
-    node_blink_set = defaultdict(set)
-    def updateDicts(node_id:str,scat:str,ocat:str,pred:str,infores:str):
-        node_key = node_to_int[node_id]
-        node_blink_set[scat].add(node_key)
-        node_ids_for_pred[scat][pred].add_id_infores(node_key,infores)
-        node_ids_for_ocat[scat][ocat].add_id_infores(node_key,infores)
-        node_ids_for_pred_plus_ocat[scat][pred][ocat].add_id_infores(node_key,infores)
-
-    node_ids_for_pred:defaultdict[str,defaultdict[str,NodeIDAndInfores]] = defaultdict(lambda: defaultdict(NodeIDAndInfores))
-    node_ids_for_ocat:defaultdict[str,defaultdict[str,NodeIDAndInfores]] = defaultdict(lambda: defaultdict(NodeIDAndInfores))
-    node_ids_for_pred_plus_ocat:defaultdict[str,defaultdict[str,defaultdict[str,NodeIDAndInfores]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(NodeIDAndInfores)))
-    for i,(edge,ingest) in tqdm(enumerate(iter_all_edges(ingest_map,"normalized"))):
+def countBiolinkNumberOfOccurs(ingest_map:INGEST_MAP,
+                               top_level_cat:bool=True,
+                               rollup_cats:Iterable[str]=[],
+                               ignore_list:list=[]):
+    node_to_int:defaultdict[str,int] = defaultdict(count().__next__)
+    node_blink_set:defaultdict[str,set[int]] = defaultdict(set)
+    source_to_catalog = defaultdict(CatalogPredSink)
+    kgxSumm_d:dict[Ingest,KGXSummarizer] = {}
+    for i,(edge,ingest) in tqdm(enumerate(iter_all_edges(ingest_map,"normalized")),total=84130086):
+        if(ingest.ingest_name in ignore_list):continue
+        if(ingest not in kgxSumm_d):
+            kgxSumm_d[ingest] = KGXSummarizer.initWithIngestObj(ingest,rollup_cats)
+        ingest = kgxSumm_d[ingest]
+        #good_ingest = ["ubergraph","geneticskp","hpoa","semmeddb","icees","cohd"]
+        #if(ingest.ingest_name not in good_ingest):continue
+        #if(i>100000):break
         #if(i>5000000):break
-        sub = edge["subject"]
-        obj = edge["object"]
+        sub:int = node_to_int[edge["subject"]]
+        obj:int = node_to_int[edge["object"]]
         pred= edge["predicate"]
-        scats = ingest.get_node_id_category(sub)
-        ocats = ingest.get_node_id_category(obj)
+        scats = ingest.get_node_id_category(edge["subject"])
+        ocats = ingest.get_node_id_category(edge["object"])
         if(not top_level_cat):raise ValueError("NOT IMPLEMENTED")
-        scat = scats[0]
-        ocat = ocats[0]
-        if(blink_class==scat):
-            updateDicts(sub,scat,ocat,pred,ingest.ingest_name)
-        if(blink_class==ocat):
-            updateDicts(obj,ocat,scat,pred,ingest.ingest_name)
-    return node_ids_for_pred, node_ids_for_ocat, node_ids_for_pred_plus_ocat, node_blink_set
-
-def makeDFSheet(blink:str,total_from_blink_class:int,column_var:str,node_dict:defaultdict[str,NodeIDAndInfores]):
-    rows = []
-    for key in node_dict:
-        t: NodeIDAndInfores = node_dict[key]
-        cnt = t.get_nodes_len()
-        perc = f"{cnt/total_from_blink_class:.2f}"
-        infores_str = t.get_infores_str()
-        rows.append((blink,key,cnt,perc,infores_str))
-    df = pd.DataFrame.from_records(rows,columns=["Root Class",column_var,"Count","Proportion","Infores"]).sort_values("Count",ascending=False)
-    return df
-
-def makePredOCatDFSheet(blink:str,total_from_blink_class:int,column_var1:str,column_var2:str,node_dict:defaultdict[str,defaultdict[str,NodeIDAndInfores]]):
-    rows = []
-    for key1 in node_dict:
-        for key2 in node_dict[key1]:
-            t: NodeIDAndInfores = node_dict[key1][key2]
-            cnt = t.get_nodes_len()
-            perc = f"{cnt/total_from_blink_class:.2f}"
-            infores_str = t.get_infores_str()
-            rows.append((blink,key1,key2,cnt,perc,infores_str))
-    df = pd.DataFrame.from_records(rows,columns=["Root Class",column_var1,column_var2,"Count","Proportion","Infores"]).sort_values("Count",ascending=False)
-    return df
+        scat = ingest._getBestCat(scats)
+        ocat = ingest._getBestCat(ocats)
+        infores = ingest.ingest_name
+        node_blink_set[scat].add(sub)
+        node_blink_set[ocat].add(obj)
+        if(True):
+            source_to_catalog[scat].update(sub,ocat,pred,infores)
+        bijective = True
+        if(bijective):
+            source_to_catalog[ocat].update(obj,scat,pred,infores)
+    return source_to_catalog, node_blink_set
 
 def makeXLSXOutput(
-        node_ids_for_pred:defaultdict[str,defaultdict[str,NodeIDAndInfores]],
-        node_ids_for_ocat:defaultdict[str,defaultdict[str,NodeIDAndInfores]],
-        node_ids_for_pred_plus_ocat:defaultdict[str,defaultdict[str,defaultdict[str,NodeIDAndInfores]]],
-        node_blink_set:defaultdict[str,set[str]]):
-    datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
-    writer = pd.ExcelWriter(f"data/blink_pred_output/summary_{datestr}.xlsx") 
-    
-    for blink_class in node_ids_for_pred:
+        source_to_catalog:defaultdict[str,CatalogPredSink],
+        node_blink_set:defaultdict[str,set[int]],
+        rollup_source_to_catalog:defaultdict[str,CatalogPredSink],
+        rollup_node_blink_set:defaultdict[str,set[int]],
+        xlsx_file:str
+        ):
+    writer = pd.ExcelWriter(xlsx_file,engine="openpyxl") 
+    rows = []
+    for blink_class in source_to_catalog:
         blink_total:int = len(node_blink_set[blink_class])
-        pred_obj = node_ids_for_pred[blink_class]
-        ocat_obj = node_ids_for_ocat[blink_class]
-        pred_ocat_obj = node_ids_for_pred_plus_ocat[blink_class]
-        pred_df = makeDFSheet(blink_class,blink_total,"Predicate",pred_obj)
-        pred_df.to_excel(
-            writer, sheet_name=f"{blink_class}-Pred",index=False
-        )
+        catalog = source_to_catalog[blink_class]
+        rows+=catalog.makeSinkDF(blink_class,blink_total)
 
-        ocat_df =  makeDFSheet(blink_class,blink_total,"OCat",ocat_obj)
-        ocat_df.to_excel(
-            writer, sheet_name=f"{blink_class}-OCat",index=False
-        )
-
-        pred_ocat_df = makePredOCatDFSheet(blink_class,blink_total,"Predicate","OCat",pred_ocat_obj)
-        pred_ocat_df.to_excel(
-            writer, sheet_name=f"{blink_class}-Pred-OCat",index=False
-        )
-
+    source_sink_df = pd.DataFrame.from_records(rows,
+        columns=["Node1","Node2","Total Unique Node1's","Percent","Predicates","Inforeses"])    
+    source_sink_df.to_excel(
+        writer, sheet_name="Node->Node",index=False
+    )
 
     blink_cnt_rows = []
     for blink_class in node_blink_set:
@@ -114,7 +142,34 @@ def makeXLSXOutput(
     blink_cnt_df.to_excel(
             writer, sheet_name=f"Total Node Counts",index=False
     )
+    del source_to_catalog
+    del node_blink_set
+#ROLLUP
+    rows = []
+    for blink_class in rollup_source_to_catalog:
+        blink_total:int = len(rollup_node_blink_set[blink_class])
+        catalog = rollup_source_to_catalog[blink_class]
+        rows+=catalog.makeSinkDF(blink_class,blink_total)
+
+    rollup_source_sink_df = pd.DataFrame.from_records(rows,
+        columns=["Node1","Node2","Total Unique Node1's","Percent","Predicates","Inforeses"])    
+    rollup_source_sink_df.to_excel(
+        writer, sheet_name="ROLLUP|Node->Node",index=False
+    )
+
+    blink_cnt_rows = []
+    for blink_class in rollup_node_blink_set:
+        blink_cnt_rows.append([blink_class,len(rollup_node_blink_set[blink_class])])
+    rollup_blink_cnt_df = pd.DataFrame.from_records(blink_cnt_rows,columns=["Biolink Class","Total Node Count"])
+    rollup_blink_cnt_df.to_excel(
+            writer, sheet_name=f"ROLLUP|Total Node Counts",index=False
+    )
+
+
+    
     writer.close()
+    #formatXlsx(xlsx_file,formatted_xlsx_file)
+    formatXlsx(xlsx_file,xlsx_file)
     """for x in sorted(node_ids_for_pred):
         print(blink,x,len(node_ids_for_pred[x]))
         for y in sorted(node_ids_for_pred_plus_ocat[x]):
@@ -127,14 +182,41 @@ if(__name__=="__main__"):
     if ingest_dir == None:
         raise ValueError("Can't find environment variable $INGEST_TOP_LEVEL_DIR")
     ingest_dict = makeIngestObjsDict(ingest_dir)
+    datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
+    source_to_catalog, node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[],["ubergraph"])
+    rollup_source_to_catalog, rollup_node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[
+        "gene or gene product",
+        "disease or phenotypic feature",
+        "chemical entity",
+    ],["ubergraph"])
 
-
-    blink = "chemical entity"
-    node_ids_for_pred, node_ids_for_ocat, node_ids_for_pred_plus_ocat, node_blink_set  = countBiolinkNumberOfOccurs(blink,ingest_dict)
-    makeXLSXOutput(node_ids_for_pred, node_ids_for_ocat, node_ids_for_pred_plus_ocat, node_blink_set)
+    
+    xlsx_file = f"data/blink_pred_output/biolink_class_level_summary_{datestr}.xlsx"
+    makeXLSXOutput(source_to_catalog, node_blink_set,
+                   rollup_source_to_catalog, rollup_node_blink_set,
+                   xlsx_file)
     
     
-    """for x in sorted(node_ids_for_pred):
-        print(blink,x,len(node_ids_for_pred[x]))
-        for y in sorted(node_ids_for_pred_plus_ocat[x]):
-            print(blink,x,"---",y,len(node_ids_for_pred_plus_ocat[x][y]))""" 
+    source_to_catalog, node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[],["semmeddb","ubergraph"])
+    rollup_source_to_catalog, rollup_node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[
+        "gene or gene product",
+        "disease or phenotypic feature",
+        "chemical entity",
+    ],["semmeddb","ubergraph"])
+
+    xlsx_file = f"data/blink_pred_output/NO_SEMMED_biolink_class_level_summary_{datestr}.xlsx"
+    makeXLSXOutput(source_to_catalog, node_blink_set,
+                   rollup_source_to_catalog, rollup_node_blink_set,
+                   xlsx_file)
+    
+    source_to_catalog, node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[],["semmeddb","tmkp","ubergraph"])
+    rollup_source_to_catalog, rollup_node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[
+        "gene or gene product",
+        "disease or phenotypic feature",
+        "chemical entity",
+    ],["semmeddb","tmkp","ubergraph"])
+
+    xlsx_file = f"data/blink_pred_output/NO_SEMMED_OR_TMKP_biolink_class_level_summary_{datestr}.xlsx"
+    makeXLSXOutput(source_to_catalog, node_blink_set,
+                   rollup_source_to_catalog, rollup_node_blink_set,
+                   xlsx_file)

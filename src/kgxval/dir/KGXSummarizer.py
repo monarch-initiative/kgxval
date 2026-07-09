@@ -309,7 +309,7 @@ class SPQOStats:
             "SCat": self.spqo.scat,
             "SCat (Actual)": ", ".join(sorted(self.act_scats)),
             "Predicate": self.spqo.pred,
-            "Qualified Predicate": self.spqo.q_pred,
+            "Qualified_Predicate": self.spqo.q_pred,
             "OCat": self.spqo.ocat,
             "OCat (Actual)": ", ".join(sorted(self.act_ocats)),
             "Knowledge-Level Terms": ", ".join(sorted(self.kl_set)),
