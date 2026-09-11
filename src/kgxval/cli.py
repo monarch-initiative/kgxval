@@ -88,7 +88,7 @@ def ingest_summary(top_level_dir:str,task_number:Optional[int]):
         pbar.set_description(source_name)
         excel_sheet_flags = ExcelDFFlags(unnorm_samp=False,
                                         unnorm_summ=False,
-                                        blink_subobj=False,
+                                        blink_subobj=True,
                                         )
 
         makeExcelSheetForSource(

@@ -1,3 +1,4 @@
+from collections import defaultdict
 import functools
 from pathlib import Path
 
@@ -16,6 +17,7 @@ class PREFIX_ERR(BaseModel, frozen=True):
     norm_status: str
     prefix: str
     cat: str
+    cnt: int
 
 
 @functools.cache
@@ -29,10 +31,12 @@ def _getIDPrefixDict() -> dict[str, set[str]]:
             continue
         prefixes = el.id_prefixes
         if prefixes is NCName or prefixes is str:
-            prefixes = [prefixes]
+            prefixes = [prefixes.lower()]
 
         if prefixes is not None and len(prefixes) > 0:
-            class_to_id_prefixes[class_name] = set(prefixes)
+            class_to_id_prefixes[class_name] = set([x.lower() for x in prefixes])
+            class_to_id_prefixes[class_name.lower()] = set([x.lower() for x in prefixes])
+            class_to_id_prefixes[class_name.upper()] = set([x.lower() for x in prefixes])
     return class_to_id_prefixes
 
 
@@ -61,6 +65,7 @@ def getNodeStructuralErrors(ingest: Ingest, fail_on_invalid: bool) -> list[PREFI
                     cat="BAD NODE ID",
                     source=ingest.ingest_name,
                     norm_status=ingest.norm_status,
+                    cnt=1,
                 )
             )
         if "category" not in node_dict:
@@ -74,13 +79,15 @@ def getNodeStructuralErrors(ingest: Ingest, fail_on_invalid: bool) -> list[PREFI
                     cat="NODE DOESN'T HAVE CATEGORY",
                     source=ingest.ingest_name,
                     norm_status=ingest.norm_status,
+                    cnt=1,
                 )
             )
     return errors
 
 
-def getUniqueNodePrefixCats(ingest: Ingest) -> set[tuple[str, str]]:
+def getUniqueNodePrefixCats(ingest: Ingest) -> dict[tuple[str, str],int]:
     prefix_cat_set: set[tuple[str, str]] = set()
+    prefix_cat_cnts: defaultdict[tuple[str,str],int] = defaultdict(int)
     for node_dict in ingest.iter_nodes():
         if ":" not in node_dict["id"]:
             continue
@@ -90,8 +97,8 @@ def getUniqueNodePrefixCats(ingest: Ingest) -> set[tuple[str, str]]:
         node_cats: tuple[str, ...] = ingest.get_node_id_category(node_dict["id"])
         for node_cat in node_cats:
             prefix_cat_tup: tuple[str, str] = (id_prefix, node_cat)
-            prefix_cat_set.add(prefix_cat_tup)
-    return prefix_cat_set
+            prefix_cat_cnts[prefix_cat_tup]+=1
+    return prefix_cat_cnts
 
 
 def _checkValidPrefixForClass(id_prefix: str, blink_class: str):
@@ -102,7 +109,7 @@ def _checkValidPrefixForClass(id_prefix: str, blink_class: str):
         return True  # No range constraint to violate
     else:
         valid_prefixes: set[str] = blink_class_to_idprefix[blink_class]
-        return id_prefix in valid_prefixes
+        return id_prefix.lower() in valid_prefixes
 
 
 def validateNodePrefixesForIngest(
@@ -111,14 +118,17 @@ def validateNodePrefixesForIngest(
     errors: list[PREFIX_ERR] = list()
     errors += getNodeStructuralErrors(ingest, fail_on_invalid)
 
-    for id_prefix, node_cat in sorted(getUniqueNodePrefixCats(ingest)):
+    cat_to_cnt = getUniqueNodePrefixCats(ingest)
+    for id_prefix, node_cat in sorted(cat_to_cnt):
         if not _checkValidPrefixForClass(id_prefix, node_cat):
+            cnt = cat_to_cnt[(id_prefix,node_cat)]
             errors.append(
                 PREFIX_ERR(
                     prefix=id_prefix,
                     cat=node_cat,
                     source=ingest.ingest_name,
                     norm_status=ingest.norm_status,
+                    cnt=cnt,
                 )
             )
     return errors

@@ -375,6 +375,12 @@ class KGXSummarizer(Ingest.Ingest):
             self.blink_class_to_depth[blink_class] = self.tk.get_element_depth(
                 blink_class
             )
+            self.blink_class_to_depth[blink_class.lower()] = self.tk.get_element_depth(
+                blink_class
+            )
+            self.blink_class_to_depth[blink_class.lower().replace(" ","")] = self.tk.get_element_depth(
+                blink_class
+            )
         super().__init__(
             ingest_name=ingest_name,
             node_path=node_path,

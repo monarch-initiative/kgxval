@@ -17,13 +17,15 @@ def findNodeFile(ingest_dir: str | Path, find_normalized: bool = True) -> Option
             continue
         for filename in files:
             if not find_normalized:
-                if filename.endswith("nodes.jsonl") and not filename.endswith(
-                    "normalized_nodes.jsonl"
-                ):
-                    return os.path.join(root, filename)
+                if (
+                    (filename.endswith("nodes.jsonl") or filename.endswith("nodes.tsv"))
+                    and not filename.endswith("normalized_nodes.jsonl")
+                    and not filename.endswith("normalized_nodes.tsv")
+                    ):return os.path.join(root, filename)
             if find_normalized:
-                if filename.endswith("normalized_nodes.jsonl"):
-                    return os.path.join(root, filename)
+                if (filename.endswith("normalized_nodes.jsonl") 
+                or filename.endswith("normalized_nodes.tsv")
+                ):return os.path.join(root, filename)
 
 
 def findEdgeFile(ingest_dir: str | Path, find_normalized: bool = True) -> Optional[str]:
@@ -31,14 +33,16 @@ def findEdgeFile(ingest_dir: str | Path, find_normalized: bool = True) -> Option
         for filename in files:
             if not find_normalized:
                 if (
-                    filename.endswith("edges.jsonl")
+                    (filename.endswith("edges.jsonl") or filename.endswith("edges.tsv")) 
                     and not filename.endswith("normalized_edges.jsonl")
+                    and not filename.endswith("normalized_edges.tsv")
                     and not filename.endswith("example_edges.jsonl")
-                ):
-                    return os.path.join(root, filename)
+                ): return os.path.join(root, filename)
             if find_normalized:
-                if filename.endswith("normalized_edges.jsonl"):
-                    return os.path.join(root, filename)
+                if (
+                    filename.endswith("normalized_edges.jsonl") 
+                    or filename.endswith("normalized_edges.tsv")
+                ): return os.path.join(root, filename)
 
 
 def expandCategories(cats: tuple[str, ...]) -> set[str]:

@@ -157,8 +157,8 @@ def makePrefixErrorDF(err_list: list[PREFIX_ERR]):
         df = pd.DataFrame(s.__dict__ for s in err_list)
     else:
         df = pd.DataFrame.from_records(
-            [["NO ERRORS FOUND", "", "", ""]],
-            columns=["source", "norm_status", "prefix", "cat"],
+            [["NO ERRORS FOUND", "", "", "",""]],
+            columns=["source", "norm_status", "prefix", "cat","cnt"],
         )
 
     return df
@@ -172,6 +172,7 @@ def makeSubObjErrorDF(spoc_errs: list[SPOCValidationError]):
         "ERROR",
         "VALID CATEGORIES",
         "PROVIDED CATEGORIES",
+        "CNT"
     ]
     if len(spoc_errs) > 0:
         df = pd.DataFrame.from_records(
@@ -179,7 +180,7 @@ def makeSubObjErrorDF(spoc_errs: list[SPOCValidationError]):
         )
     else:
         df = pd.DataFrame.from_records(
-            [["NO ERRORS FOUND", "", "", "", "", ""]], columns=columns
+            [["NO ERRORS FOUND", "", "", "", "", "",""]], columns=columns
         )
     return df
 

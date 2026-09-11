@@ -92,6 +92,7 @@ class SPOCValidationError(BaseModel, frozen=True):
     actual_cats: tuple[str, ...]
     ingest_name: str
     normalized: str
+    cnt: int
 
     def to_csv_list(self):
         return [
@@ -101,11 +102,12 @@ class SPOCValidationError(BaseModel, frozen=True):
             self.error,
             "|".join(sorted(self.valid_cats)),
             "|".join(sorted(self.actual_cats)),
+            self.cnt,
         ]
 
 
 def _checkValidBiolink(
-    pred: str, ingest_name: str, normalized: str
+    pred: str, ingest_name: str, normalized: str, cnt:int
 ) -> list[SPOCValidationError]:
     tk = get_toolkit()
     if tk.get_element(pred) == None:
@@ -117,6 +119,7 @@ def _checkValidBiolink(
                 actual_cats=tuple(),
                 ingest_name=ingest_name,
                 normalized=normalized,
+                cnt=cnt,
             )
         ]
     return []
@@ -145,7 +148,7 @@ def getSubRange(pred: Optional[str]) -> Optional[str]:
 
 
 def _checkSubForPred(
-    pred: str, node_sub_cats: tuple[str, ...], ingest_name: str, normalized: str
+    pred: str, node_sub_cats: tuple[str, ...], ingest_name: str, normalized: str, cnt: int,
 ) -> list[SPOCValidationError]:
     tk = get_toolkit()
     if tk.get_element(pred) == None:
@@ -166,6 +169,7 @@ def _checkSubForPred(
                 actual_cats=node_sub_cats,
                 ingest_name=ingest_name,
                 normalized=normalized,
+                cnt=cnt,
             )
         ]
     else:
@@ -193,7 +197,7 @@ def getObjRange(pred: Optional[str]) -> Optional[str]:
 
 
 def _checkObjForPred(
-    pred: str, node_obj_cats: tuple[str, ...], ingest_name: str, normalized: str
+    pred: str, node_obj_cats: tuple[str, ...], ingest_name: str, normalized: str, cnt: int,
 ) -> list[SPOCValidationError]:
     tk = get_toolkit()
     if tk.get_element(pred) == None:
@@ -214,6 +218,7 @@ def _checkObjForPred(
                 actual_cats=node_obj_cats,
                 ingest_name=ingest_name,
                 normalized=normalized,
+                cnt=cnt,
             )
         ]
     else:
@@ -221,27 +226,29 @@ def _checkObjForPred(
 
 
 def findSubObjErrorsForIngest(ingest: Ingest) -> list[SPOCValidationError]:
+    check_cats = False
     error_list: list[SPOCValidationError] = []
-    for sopc, _ in _getUniqueSOPCsForIngest(ingest):
+    for sopc, cnt in _getUniqueSOPCsForIngest(ingest):
         error_list += _checkValidBiolink(
-            sopc.predicate, ingest.ingest_name, ingest.norm_status
+            sopc.predicate, ingest.ingest_name, ingest.norm_status, cnt
         )
         error_list += _checkSubForPred(
-            sopc.predicate, sopc.node_sub_cats, ingest.ingest_name, ingest.norm_status
+            sopc.predicate, sopc.node_sub_cats, ingest.ingest_name, ingest.norm_status, cnt
         )
         error_list += _checkObjForPred(
-            sopc.predicate, sopc.node_obj_cats, ingest.ingest_name, ingest.norm_status
+            sopc.predicate, sopc.node_obj_cats, ingest.ingest_name, ingest.norm_status, cnt
         )
-        for edge_cat in sopc.edge_cats:
-            error_list += _checkValidBiolink(
-                edge_cat, ingest.ingest_name, ingest.norm_status
-            )
-            error_list += _checkSubForPred(
-                edge_cat, sopc.node_sub_cats, ingest.ingest_name, ingest.norm_status
-            )
-            error_list += _checkObjForPred(
-                edge_cat, sopc.node_obj_cats, ingest.ingest_name, ingest.norm_status
-            )
+        if(check_cats):
+            for edge_cat in sopc.edge_cats:
+                error_list += _checkValidBiolink(
+                    edge_cat, ingest.ingest_name, ingest.norm_status, cnt
+                )
+                error_list += _checkSubForPred(
+                    edge_cat, sopc.node_sub_cats, ingest.ingest_name, ingest.norm_status, cnt
+                )
+                error_list += _checkObjForPred(
+                    edge_cat, sopc.node_obj_cats, ingest.ingest_name, ingest.norm_status, cnt
+                )
     return error_list
 
 

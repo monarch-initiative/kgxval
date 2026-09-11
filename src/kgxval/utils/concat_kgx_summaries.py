@@ -9,7 +9,7 @@ def getLatestRunDir():
     print(f"Latest run was made on - {latest_dir}")
     return os.path.join("data","output",latest_dir)
 
-print(os.listdir(getLatestRunDir()))
+#print(os.listdir(getLatestRunDir()))
 
 def getNorm(xlsx_file_path):
     ef = pd.ExcelFile(xlsx_file_path)
@@ -18,16 +18,23 @@ def getNorm(xlsx_file_path):
     norm_df = pd.read_excel(ef,norm_sheet)
     return norm_df
 
-latest_dir = getLatestRunDir()
-mega_df = pd.DataFrame()
-for x in os.listdir(latest_dir):
-    if(not x.endswith('.xlsx')):continue
-    if(("merge" in x) or ("combine" in x)):continue
-    norm_df = getNorm(os.path.join(latest_dir,x))
-    print(x,norm_df)
-    mega_df = pd.concat([mega_df,norm_df])
-from pathlib import Path
-latest_date = Path(latest_dir).stem
-writer = pd.ExcelWriter(os.path.join("data/output",latest_date,f"_concatted_summaries_{latest_date}.xlsx"))
-mega_df.to_excel(writer,sheet_name=f"{latest_date}_combined",index=False)
-writer.close()
+if(__name__=="__main__"):
+    import sys
+    #uv run python src/kgxval/utils/concat_kgx_summaries.py $DIR
+    if(len(sys.argv)>1):
+        run_dir = sys.argv[1]
+    else:
+        run_dir = getLatestRunDir()
+    mega_df = pd.DataFrame()
+    for x in os.listdir(run_dir):
+        if(not x.endswith('.xlsx')):continue
+        if(("merge" in x) or ("combine" in x)):continue
+        if((x.startswith("biolink_class_level_summary"))):continue
+        norm_df = getNorm(os.path.join(run_dir,x))
+        print(x,norm_df)
+        mega_df = pd.concat([mega_df,norm_df])
+    from pathlib import Path
+    latest_date = Path(run_dir).stem
+    writer = pd.ExcelWriter(os.path.join("data/output",latest_date,f"_concatted_summaries_{latest_date}.xlsx"))
+    mega_df.to_excel(writer,sheet_name=f"{latest_date}_combined",index=False)
+    writer.close()
