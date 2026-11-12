@@ -1,8 +1,7 @@
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    print("HI")
-    from dir.Ingest import Ingest
+    from .Ingest import Ingest
 
 KGX_NODE = dict[str, Any]
 KGX_EDGE = dict[str, Any]

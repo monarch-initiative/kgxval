@@ -93,10 +93,6 @@ def countBiolinkNumberOfOccurs(ingest_map:INGEST_MAP,
         if(ingest not in kgxSumm_d):
             kgxSumm_d[ingest] = KGXSummarizer.initWithIngestObj(ingest,rollup_cats)
         ingest = kgxSumm_d[ingest]
-        #good_ingest = ["ubergraph","geneticskp","hpoa","semmeddb","icees","cohd"]
-        #if(ingest.ingest_name not in good_ingest):continue
-        #if(i>100000):break
-        #if(i>5000000):break
         sub:int = node_to_int[edge["subject"]]
         obj:int = node_to_int[edge["object"]]
         pred= edge["predicate"]
@@ -114,6 +110,46 @@ def countBiolinkNumberOfOccurs(ingest_map:INGEST_MAP,
         if(bijective):
             source_to_catalog[ocat].update(obj,scat,pred,infores)
     return source_to_catalog, node_blink_set
+
+def countBiolinkNumberOfOccursForSingleIngest(
+    ingest: KGXSummarizer,
+    top_level_cat:bool=True,
+    bijective=True,
+):
+    node_to_int:defaultdict[str,int] = defaultdict(count().__next__)
+    node_blink_set:defaultdict[str,set[int]] = defaultdict(set)
+    source_to_catalog = defaultdict(CatalogPredSink)
+    for edge in ingest.iter_edges():
+        sub:int = node_to_int[edge["subject"]]
+        obj:int = node_to_int[edge["object"]]
+        pred= edge["predicate"]
+        scats = ingest.get_node_id_category(edge["subject"])
+        ocats = ingest.get_node_id_category(edge["object"])
+        if(not top_level_cat):raise ValueError("NOT IMPLEMENTED")
+        scat = ingest._getBestCat(scats)
+        ocat = ingest._getBestCat(ocats)
+        infores = ingest.ingest_name
+        node_blink_set[scat].add(sub)
+        node_blink_set[ocat].add(obj)
+        if(True):
+            source_to_catalog[scat].update(sub,ocat,pred,infores)
+        bijective = True
+        if(bijective):
+            source_to_catalog[ocat].update(obj,scat,pred,infores)
+    return source_to_catalog, node_blink_set
+
+def makeDFForKGXSumm(ingest:KGXSummarizer):
+    source_to_catalog, node_blink_set = countBiolinkNumberOfOccursForSingleIngest(ingest)
+    rows = []
+    for blink_class in source_to_catalog:
+        blink_total:int = len(node_blink_set[blink_class])
+        catalog = source_to_catalog[blink_class]
+        rows+=catalog.makeSinkDF(blink_class,blink_total)
+
+    source_sink_df = pd.DataFrame.from_records(rows,
+        columns=["Node1","Node2","Total Unique Node1's","Percent","Predicates","Inforeses"])
+    return source_sink_df    
+
 
 def makeXLSXOutput(
         source_to_catalog:defaultdict[str,CatalogPredSink],

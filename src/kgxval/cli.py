@@ -8,6 +8,7 @@ import pandas as pd
 from kgxval.biolink_validation.normalization_errors import find_normalization_errors
 from kgxval.dir.KGXSummarizer import KGXSummarizer
 from kgxval.dir.Ingest import makeIngestObjsDict, makeIngestObjsFromTopLevelDir, makeNormalizedIngest, makeNotNormalizedIngest
+from kgxval.dir.analyze_predicate_prevelance import countBiolinkNumberOfOccurs, makeXLSXOutput
 from kgxval.dir.kgxval_types import INGEST_MAP
 from kgxval.dir.pandas_outputter import ExcelDFFlags, makeExcelSheetForSource, makeSummaryDF
 import os
@@ -70,9 +71,10 @@ def ingest_summary(top_level_dir:str,task_number:Optional[int]):
         "disease or phenotypic feature",
         "chemical entity",
     ])
+    ingest_dir_name = Path(top_level_dir).stem
 
-    datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
-    outdir = f"data/output/{datestr}"
+    #datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
+    outdir = f"data/output/{ingest_dir_name}"
     os.makedirs(outdir, exist_ok=True)
 
     pbar:tqdm[str] = tqdm(sorted(list(ingest_dict)))
@@ -95,7 +97,7 @@ def ingest_summary(top_level_dir:str,task_number:Optional[int]):
             ingest_dict=ingest_dict,
             source_name=source_name,
             hp_cats=hp_cats,
-            outpath=f"{outdir}/{source_name}_{datestr}_summary.xlsx",
+            outpath=f"{outdir}/{source_name}_{ingest_dir_name}_summary.xlsx",
             pbar=pbar,
             config=excel_sheet_flags,
         )
@@ -111,12 +113,13 @@ def ingest_summary(top_level_dir:str,task_number:Optional[int]):
     default=False,
 )
 def merge_sources_together(top_level_dir:str,ignore_sem_icees_uber:bool):
+    ingest_dir_name = Path(top_level_dir).stem
     if(ignore_sem_icees_uber):
         print("Ignoring semmed icees and ubergraph")
     ingest_dict = makeIngestObjsDict(top_level_dir)
 
-    datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
-    outdir = f"data/output/{datestr}"
+    #datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
+    outdir = f"data/output/{ingest_dir_name}"
     os.makedirs(outdir, exist_ok=True)
 
     for x in list(ingest_dict):
@@ -137,9 +140,9 @@ def merge_sources_together(top_level_dir:str,ignore_sem_icees_uber:bool):
         ingest_obj = ingest_dict[source_name]["normalized"]
         norm_summ.add_summarize_edges_for_iter(ingest_obj.iter_edges(),ingest_obj,source_name)
     if(ignore_sem_icees_uber):
-        xlsx_name = f"data/output/{datestr}/_merged_summary_NOSEMMED-ICEES-UBERGRAPH_{datestr}.xlsx"
+        xlsx_name = os.path.join(outdir,f"_merged_summary_NOSEMMED-ICEES-UBERGRAPH_{ingest_dir_name}.xlsx")
     else:
-        xlsx_name = f"data/output/{datestr}/_merged_summary_{datestr}.xlsx"
+        xlsx_name = os.path.join(outdir,f"_merged_summary_{ingest_dir_name}.xlsx")
     writer = pd.ExcelWriter(xlsx_name) 
     norm_df = makeSummaryDF(norm_summ.get_pd_rows(), rollup=False)
     norm_df.to_excel(
@@ -154,13 +157,64 @@ def merge_sources_together(top_level_dir:str,ignore_sem_icees_uber:bool):
 )
 def find_normalization_cat_errors(top_level_dir:str):
     ingest_dict = makeIngestObjsDict(top_level_dir)
-
-    datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
-    outdir = f"data/output/{datestr}/norm_errors"
+    ingest_dir_name = Path(top_level_dir).stem
+    #datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
+    outdir = f"data/output/{ingest_dir_name}/norm_errors"
     os.makedirs(outdir, exist_ok=True)
     misses_csv_path = os.path.join(outdir,'misses.csv')
     matches_csv_path = os.path.join(outdir,'matches.csv')
     find_normalization_errors(ingest_dict,misses_csv_path,matches_csv_path)
+
+@click.command("predicate_prevelance")
+@click.argument(
+    "top_level_dir",
+    type=str,
+)
+def predicate_prevelance(top_level_dir:str):
+    ingest_dict = makeIngestObjsDict(top_level_dir)
+    ingest_dir_name = Path(top_level_dir).stem
+    #datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
+    source_to_catalog, node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[],["ubergraph"])
+    rollup_source_to_catalog, rollup_node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[
+        "gene or gene product",
+        "disease or phenotypic feature",
+        "chemical entity",
+    ],["ubergraph"])
+
+    #datestr = datetime.now().strftime("%b-%d-%y")  # ex. Feb-16-2026
+    outdir = f"data/output/{ingest_dir_name}/predicate_info/"
+    os.makedirs(outdir, exist_ok=True)
+
+    xlsx_file1 = os.path.join(outdir,f"biolink_class_level_summary_{ingest_dir_name}.xlsx")
+    makeXLSXOutput(source_to_catalog, node_blink_set,
+                   rollup_source_to_catalog, rollup_node_blink_set,
+                   xlsx_file1)
+    
+    
+    source_to_catalog, node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[],["semmeddb","ubergraph"])
+    rollup_source_to_catalog, rollup_node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[
+        "gene or gene product",
+        "disease or phenotypic feature",
+        "chemical entity",
+    ],["semmeddb","ubergraph"])
+
+    xlsx_file2 = os.path.join(outdir,f"NO_SEMMED_biolink_class_level_summary_{ingest_dir_name}.xlsx")
+    makeXLSXOutput(source_to_catalog, node_blink_set,
+                   rollup_source_to_catalog, rollup_node_blink_set,
+                   xlsx_file2)
+    
+    source_to_catalog, node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[],["semmeddb","tmkp","ubergraph"])
+    rollup_source_to_catalog, rollup_node_blink_set  = countBiolinkNumberOfOccurs(ingest_dict,True,[
+        "gene or gene product",
+        "disease or phenotypic feature",
+        "chemical entity",
+    ],["semmeddb","tmkp","ubergraph"])
+
+    xlsx_file3 = os.path.join(outdir,f"NO_SEMMED_OR_TMKP_biolink_class_level_summary_{ingest_dir_name}.xlsx")
+    makeXLSXOutput(source_to_catalog, node_blink_set,
+                   rollup_source_to_catalog, rollup_node_blink_set,
+                   xlsx_file3)
+
 
 if __name__ == "__main__":
    #main()

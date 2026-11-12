@@ -27,7 +27,7 @@ def TSVDictGen(
     file_loc: Optional[Path], _: bool = False
 ) -> Iterable[KGX_NODE | KGX_EDGE]:
     if file_loc is None:
-        return
+        raise ValueError(f"No TSV file located at {file_loc}")
     with open(file_loc) as edgetsv:
         dReader = csv.DictReader(edgetsv, delimiter="\t")
         for d in dReader:

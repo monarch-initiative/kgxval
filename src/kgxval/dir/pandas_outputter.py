@@ -14,6 +14,7 @@ from kgxval.biolink_validation.check_kgx_sub_obj_pred import (
     findSubObjErrorsForIngest,
 )
 from kgxval.dir.KGXSummarizer import KGXSummarizer, SPQOStats, orderQualifiersForMatt
+from kgxval.dir.analyze_predicate_prevelance import makeDFForKGXSumm
 from kgxval.dir.kgxval_types import INGEST_MAP, KGX_EDGE, KGX_SUMM
 
 
@@ -200,6 +201,8 @@ class ExcelDFFlags(BaseModel):
     """If set will return attach a sheet with error in biolink subject, object, predicates in normalized and unnormalized ingests."""
     include_rollup: bool = True
     """If set, will make a sheet where the categories are rolled up to the hp_cats."""
+    include_node_cnts: bool = True
+    """If set, will include a sheet where nodes are counted."""
 
 
 def makeExcelSheetForSource(
@@ -306,13 +309,29 @@ def makeExcelSheetForSource(
         )
 
     if config.blink_prefix:
+        updatePBar("finding biolink prefix errors")
         prefix_df = makePrefixErrorDF(prefix_errs)
         prefix_df.to_excel(
             writer, sheet_name=f"{source_name}_BIOLINK_PREFIX_ERRORS", index=False
         )
     if config.blink_subobj:
+        updatePBar("finding biolink subject/object errors")
         sub_obj_df = makeSubObjErrorDF(sub_obj_errs)
         sub_obj_df.to_excel(
             writer, sheet_name=f"{source_name}_BIOLINK_SUBOBJ_ERRORS", index=False
         )
+    if norm_exists and config.include_node_cnts:
+        updatePBar("Counting nodes by type and predicates")
+        norm_ingest_obj = ingest_dict[source_name]["normalized"]
+        kgx_summ = KGXSummarizer.initWithIngestObj(norm_ingest_obj, hp_cats)
+        node_cnt_dicts = kgx_summ.summarize_nodes()
+        node_cnt_df = pd.DataFrame.from_records(list(node_cnt_dicts.items()),columns=["Node_Cat","Cnt"])
+        node_cnt_df.to_excel(
+            writer, sheet_name=f"{source_name}_Node_Cnts", index=False
+        )
+        pred_cnt_df = makeDFForKGXSumm(kgx_summ)
+        pred_cnt_df.to_excel(
+            writer, sheet_name=f"{source_name}_Pred_Cnts", index=False
+        )
+    updatePBar("Done!")
     writer.close()

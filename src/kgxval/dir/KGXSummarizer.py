@@ -441,6 +441,7 @@ class KGXSummarizer(Ingest.Ingest):
         self.summarize_edges_ran = True
         return self.get_pd_rows()
     
+    """This function is for a slight edge case where you want to have one summary for multiple KGX files. In this case you pass in a pointer to the iterable and the ingest information and it will be "bolted on" to the current summary."""
     def add_summarize_edges_for_iter(self, edge_iter:Iterable[KGX_EDGE], ingest: Ingest.Ingest, infores_name:str):
         # spqo_to_stats:dict[SPQO,SPQOStats] = {}
         self.get_node_id_category = ingest.get_node_id_category
@@ -495,6 +496,16 @@ class KGXSummarizer(Ingest.Ingest):
         for edge_sample_list in edge_samples_for_spoq.values():
             list_of_all_samples.extend(edge_sample_list)
         return list_of_all_samples
+
+
+    def summarize_nodes(self) -> dict[str,int]:
+        node_cnts = defaultdict(int)
+        for node_dict in self.iter_nodes():
+            all_cats = self.get_node_id_category(node_dict["id"])
+            best_cat = self._getBestCat(all_cats)
+            node_cnts[best_cat]+=1
+        return node_cnts
+
 
     def get_pd_rows(self) -> list[PD_SUMM_ROW]:
         if not self.summarize_edges_ran:

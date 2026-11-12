@@ -208,6 +208,7 @@ __marimo__/
 uv.lock
 
 ignore/*
+scripts/ignore/*
 data/output/*
 data/*
 *.pyi
