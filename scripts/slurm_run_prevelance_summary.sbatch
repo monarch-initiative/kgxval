@@ -1,6 +1,6 @@
 #!/bin/bash
 # Job name:
-#SBATCH --job-name=kgx-mega-summarization
+#SBATCH --job-name=ocat-pred-summarization
 #
 # Partition:
 #SBATCH --partition=largemem
@@ -16,12 +16,12 @@
 #SBATCH --time=2-00:00:00
 #
 #SBATCH --mem=250GB
-#SBATCH --output=ignore/slurm_output/mega_slurm-%A.out
+#
+#SBATCH --output=ignore/slurm_output/%A-prevelance.out
 
-#--begin=now+4hour
-
-mkdir -p ignore/slurm_output
-uv sync
+cd ..
 . .env
-uv run merge_sources_together $INGEST_TOP_LEVEL_DIR --ignore_sem_icees_uber True
-uv run merge_sources_together $INGEST_TOP_LEVEL_DIR --ignore_sem_icees_uber False
+uv sync
+#uv run merge_sources_together $INGEST_TOP_LEVEL_DIR --ignore_sem_icees_uber True
+uv run predicate_prevelance $INGEST_TOP_LEVEL_DIR
+#uv run python src/kgxval/dir/analyze_predicate_prevelance.py

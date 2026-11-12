@@ -1,9 +1,6 @@
 #!/bin/bash
 # Job name:
-#SBATCH --job-name=ocat-pred-summarization
-#
-# Partition:
-#SBATCH --partition=largemem
+#SBATCH --job-name=sleep
 ### scontrol show partitions | grep PartitionName | sed s/PartitionName=//
 #
 # Number of tasks needed for use case (example):
@@ -15,8 +12,9 @@
 # Wall clock limit
 #SBATCH --time=2-00:00:00
 #
-#SBATCH --mem=250GB
-#
-#SBATCH --output=ignore/slurm_output/slurm-%j.out
+#SBATCH --output=ignore/slurm_output/mega_slurm-%A.out
+#SBATCH --array=0-4
 
-uv run python src/kgxval/dir/analyze_predicate_prevelance.py
+echo $SLURM_ARRAY_TASK_ID
+sleep 10s
+echo "Goodbye"
